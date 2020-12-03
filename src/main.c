@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <SDL2/SDL_scancode.h>
 
@@ -22,6 +23,7 @@
 
 #define mainGENERIC_PRIORITY (tskIDLE_PRIORITY)
 #define mainGENERIC_STACK_SIZE ((unsigned short)2560)
+#define PI 3.14
 
 #define STATE_QUEUE_LENGTH 1
 
@@ -670,53 +672,230 @@ void vDemoTask2(void *pvParameters)
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
+unsigned short a = 0, b = 0, c = 0, d = 0, mouse_left = 0, mouse_right = 0, mouse_middle = 0, temp = 0;
+
+
+void vDemoTask(void *pvParameters)
+{
+
+    //Array for the coordinates of the triangle
+    coord_t trianglecoords[3];  
+    trianglecoords[0].x = SCREEN_WIDTH/2 - 30;
+    trianglecoords[0].y = 240;
+    trianglecoords[1].x = SCREEN_WIDTH/2 + 30;
+    trianglecoords[1].y = 240;
+    trianglecoords[2].x = SCREEN_WIDTH/2;
+    trianglecoords[2].y = 180;
+
+    int cnt = 0;
+    //coordinates of the circle
+    signed short circle_x = SCREEN_WIDTH/2 + 100;
+    signed short circle_y = 210;
+    double angle_circle = atan2(100,0)*180/PI;
+    signed short box_x = SCREEN_WIDTH/2 - 80;
+    signed short box_y = 300;
+    double angle_box = atan2(SCREEN_WIDTH/2 - box_x,210 - 230)*180/PI;
+    //strings to print
+    char* bottom_string = "Filip Ratic";
+    char* top_string = "Hello ESPL!";
+    static char abString[50];
+    static char cdString[50];
+    static char mouseLocation[50];
+    static char mouseClick[50];
+    //coordinates of the top string, used for moving the string
+
+    signed short string_x = 380;
+    signed short string_y = 1;
+
+    // Coordinates for the start and ending of one cycle for moving the top string
+    signed short start = 380;
+    signed short reset = 430;
+
+    bool flag;  // Boolean variable to check if the string got to the end of the path it's supposed to move in 
+
+
+        
+    signed short mouse_x, mouse_y;
+    
+    
+    
+    
+
+    // Needed such that Gfx library knows which thread controlls drawing
+    // Only one thread can call tumDrawUpdateScreen while and thread can call
+    // the drawing functions to draw objects. This is a limitation of the SDL
+    // backend.
+    tumDrawBindThread();
+
+    while (1) {
+        tumEventFetchEvents(FETCH_EVENT_NONBLOCK); // Query events backend for new events, ie. button presses
+        xGetButtonInput(); // Update global input
+
+    
+
+        // `buttons` is a global shared variable and as such needs to be
+        // guarded with a mutex, mutex must be obtained before accessing the
+        // resource and given back when you're finished. If the mutex is not
+        // given back then no other task can access the reseource.
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[KEYCODE(
+                                    Q)]) { // Equiv to SDL_SCANCODE_Q
+                exit(EXIT_SUCCESS);
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+
+        tumDrawClear(White); // Clear screen
+
+        mouse_x = tumEventGetMouseX();
+        mouse_y = tumEventGetMouseY();
+       
+        tumDrawCircle(circle_x, circle_y, 40, TUMBlue); // Circle
+        tumDrawTriangle(trianglecoords, Red); // Triangle
+        tumDrawFilledBox(box_x, box_y, 60, 60, Purple); //Box
+        tumDrawText(bottom_string, SCREEN_WIDTH/2 - 50, SCREEN_HEIGHT - 30, Black);
+        tumDrawText(top_string, string_x, string_y, Black);
+        if(string_x == start) flag = true;                   
+        else if(string_x == reset) flag = false;
+        if(flag) string_x++;
+        else string_x--;
+
+
+        //Code for using the Semaphore for pressing buttons on the keyboard. Copied from the original clean branch. 
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_A]) { 
+                temp = a;
+                a++;
+                
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_B]) { 
+                temp = b;
+                b++;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_C]) { 
+                temp = c;
+                c++;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_D]) { 
+                temp = d;
+                d++;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (tumEventGetMouseLeft()) { 
+                temp = mouse_left;
+                mouse_left++;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (tumEventGetMouseRight()) { 
+                temp = mouse_right;
+                mouse_right++;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (tumEventGetMouseMiddle()) { 
+                temp = mouse_middle;
+                mouse_middle++;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+
+        //Reseting the values in case LMB gets used
+
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (tumEventGetMouseLeft()) { 
+                a = 0;
+                b = 0; 
+                c = 0;
+                d = 0;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+
+        
+
+
+        sprintf(abString,"A was pressed: %d times || B was pressed: %d times", a, b);
+        tumDrawText(abString, 5, 5, Black);
+        sprintf(cdString,"C was pressed: %d times || D was pressed: %d times", c, d);
+        tumDrawText(cdString, 5, 20, Black);
+        sprintf(mouseLocation, "Mouse X Coordinate: %d || Mouse Y Coordinate: %d", mouse_x, mouse_y);
+        tumDrawText(mouseLocation, 5, 40, Black);
+        sprintf(mouseClick, "Mouse LMB: %d || Mouse RMB: %d || Mouse MMB: %d", mouse_left, mouse_right, mouse_middle);
+        tumDrawText(mouseClick, 5, 60, Black); 
+        
+        // algorithm for moving the box and circle around the triangle
+        cnt++;
+        circle_x = circle_x + cos(angle_circle)*100;
+        circle_y = circle_y + sin(angle_circle)*100;
+        
+        box_x = box_x - cos(angle_box)*102;
+        box_y = box_y - sin(angle_box)*102;
+             
+        angle_circle++;
+        angle_box++;
+        if(angle_circle > 96) {
+            angle_circle = 90.0456;
+            circle_x = SCREEN_WIDTH/2 + 100;
+            circle_y = 210;
+        }
+        
+        if(angle_box > 107){
+            angle_box = 101.3610;
+            box_x = SCREEN_WIDTH/2 - 80;
+            box_y = 300;
+        }
+       
+
+        
+        
+
+
+
+        tumDrawUpdateScreen();
+        // Basic sleep of 1000 milliseconds
+        vTaskDelay((TickType_t)80);
+    }
+}
+
+
+
+
+
 int main(int argc, char *argv[])
 {
     char *bin_folder_path = tumUtilGetBinFolderPath(argv[0]);
-
-    prints("Initializing: ");
-
-    //  Note PRINT_ERROR is not thread safe and is only used before the
-    //  scheduler is started. There are thread safe print functions in
-    //  TUM_Print.h, `prints` and `fprints` that work exactly the same as
-    //  `printf` and `fprintf`. So you can read the documentation on these
-    //  functions to understand the functionality.
+    printf("Initializing: ");
+    
 
     if (tumDrawInit(bin_folder_path)) {
-        PRINT_ERROR("Failed to intialize drawing");
+        PRINT_ERROR("Failed to initialize drawing");
         goto err_init_drawing;
-    }
-    else {
-        prints("drawing");
     }
 
     if (tumEventInit()) {
         PRINT_ERROR("Failed to initialize events");
         goto err_init_events;
     }
-    else {
-        prints(", events");
-    }
 
     if (tumSoundInit(bin_folder_path)) {
         PRINT_ERROR("Failed to initialize audio");
         goto err_init_audio;
     }
-    else {
-        prints(", and audio\n");
-    }
-
-    if (safePrintInit()) {
-        PRINT_ERROR("Failed to init safe print");
-        goto err_init_safe_print;
-    }
-
-    logo_image = tumDrawLoadImage(LOGO_FILENAME);
-
-    atexit(aIODeinit);
-
-    //Load a second font for fun
-    tumFontLoadFont(FPS_FONT, DEFAULT_FONT_SIZE);
 
     buttons.lock = xSemaphoreCreateMutex(); // Locking mechanism
     if (!buttons.lock) {
@@ -724,83 +903,20 @@ int main(int argc, char *argv[])
         goto err_buttons_lock;
     }
 
-    DrawSignal = xSemaphoreCreateBinary(); // Screen buffer locking
-    if (!DrawSignal) {
-        PRINT_ERROR("Failed to create draw signal");
-        goto err_draw_signal;
-    }
-    ScreenLock = xSemaphoreCreateMutex();
-    if (!ScreenLock) {
-        PRINT_ERROR("Failed to create screen lock");
-        goto err_screen_lock;
+    if (xTaskCreate(vDemoTask, "DemoTask", mainGENERIC_STACK_SIZE * 2, NULL,
+                    mainGENERIC_PRIORITY, &vDemoTask) != pdPASS) {
+        goto err_demotask;
     }
 
-    // Message sending
-    StateQueue = xQueueCreate(STATE_QUEUE_LENGTH, sizeof(unsigned char));
-    if (!StateQueue) {
-        PRINT_ERROR("Could not open state queue");
-        goto err_state_queue;
-    }
 
-    if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
-                    mainGENERIC_STACK_SIZE * 2, NULL,
-                    configMAX_PRIORITIES - 1, StateMachine) != pdPASS) {
-        PRINT_TASK_ERROR("StateMachine");
-        goto err_statemachine;
-    }
-    if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
-                    mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
-                    BufferSwap) != pdPASS) {
-        PRINT_TASK_ERROR("BufferSwapTask");
-        goto err_bufferswap;
-    }
 
-    /** Demo Tasks */
-    if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask1");
-        goto err_demotask1;
-    }
-    if (xTaskCreate(vDemoTask2, "DemoTask2", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask2) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask2");
-        goto err_demotask2;
-    }
-
-    /** SOCKETS */
-    xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &UDPDemoTask);
-    xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
-                configMAX_PRIORITIES - 1, &TCPDemoTask);
-
-    /** POSIX MESSAGE QUEUES */
-    xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &MQDemoTask);
-    xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &DemoSendTask);
-
-    vTaskSuspend(DemoTask1);
-    vTaskSuspend(DemoTask2);
-
-    tumFUtilPrintTaskStateList();
+    
 
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
 
-err_demotask2:
-    vTaskDelete(DemoTask1);
-err_demotask1:
-    vTaskDelete(BufferSwap);
-err_bufferswap:
-    vTaskDelete(StateMachine);
-err_statemachine:
-    vQueueDelete(StateQueue);
-err_state_queue:
-    vSemaphoreDelete(ScreenLock);
-err_screen_lock:
-    vSemaphoreDelete(DrawSignal);
-err_draw_signal:
+err_demotask:
     vSemaphoreDelete(buttons.lock);
 err_buttons_lock:
     tumSoundExit();
@@ -809,8 +925,6 @@ err_init_audio:
 err_init_events:
     tumDrawExit();
 err_init_drawing:
-    safePrintExit();
-err_init_safe_print:
     return EXIT_FAILURE;
 }
 
