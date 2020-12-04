@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include <SDL2/SDL_scancode.h>
 
@@ -77,6 +78,7 @@ static TaskHandle_t UDPDemoTask = NULL;
 static TaskHandle_t TCPDemoTask = NULL;
 static TaskHandle_t MQDemoTask = NULL;
 static TaskHandle_t DemoSendTask = NULL;
+static TaskHandle_t Exercise2 = NULL;
 
 static QueueHandle_t StateQueue = NULL;
 static SemaphoreHandle_t DrawSignal = NULL;
@@ -674,6 +676,20 @@ void vDemoTask2(void *pvParameters)
 
 unsigned short a = 0, b = 0, c = 0, d = 0, mouse_left = 0, mouse_right = 0, mouse_middle = 0, temp = 0;
 
+void debounce(unsigned short* currState){
+    float lastDebounceTime, debounceDelay = 0.020;
+    unsigned short lastButtonState = temp;
+    unsigned short reading = *currState;
+    if(reading != lastButtonState) lastDebounceTime = (float)clock();
+    printf("%f\n", (float)clock() - lastDebounceTime);
+    if(((float)clock() - lastDebounceTime) > debounceDelay){
+        printf("test\n");
+        if(reading != *currState) *currState = reading;
+    }
+    temp = reading;
+
+}
+
 
 void vDemoTask(void *pvParameters)
 {
@@ -755,6 +771,9 @@ void vDemoTask(void *pvParameters)
         tumDrawFilledBox(box_x, box_y, 60, 60, Purple); //Box
         tumDrawText(bottom_string, SCREEN_WIDTH/2 - 50, SCREEN_HEIGHT - 30, Black);
         tumDrawText(top_string, string_x, string_y, Black);
+        
+        //Moving the text from one end to another
+        
         if(string_x == start) flag = true;                   
         else if(string_x == reset) flag = false;
         if(flag) string_x++;
@@ -765,7 +784,7 @@ void vDemoTask(void *pvParameters)
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
             if (buttons.buttons[SDL_SCANCODE_A]) { 
                 temp = a;
-                a++;
+                debounce(&a);
                 
             }
             xSemaphoreGive(buttons.lock);
@@ -827,6 +846,7 @@ void vDemoTask(void *pvParameters)
         }
 
         
+        //printing out the values of keyboard and mouse on screen
 
 
         sprintf(abString,"A was pressed: %d times || B was pressed: %d times", a, b);
@@ -838,8 +858,16 @@ void vDemoTask(void *pvParameters)
         sprintf(mouseClick, "Mouse LMB: %d || Mouse RMB: %d || Mouse MMB: %d", mouse_left, mouse_right, mouse_middle);
         tumDrawText(mouseClick, 5, 60, Black); 
         
+        
+        // part for moving the whole screen. /10 because I don't want the offset to be too strong 
+        
+        tumDrawSetGlobalXOffset((int)mouse_x/10);
+        tumDrawSetGlobalYOffset((int)mouse_y/10);
+        
+        
         // algorithm for moving the box and circle around the triangle
-        cnt++;
+        
+        
         circle_x = circle_x + cos(angle_circle)*100;
         circle_y = circle_y + sin(angle_circle)*100;
         
@@ -848,13 +876,13 @@ void vDemoTask(void *pvParameters)
              
         angle_circle++;
         angle_box++;
-        if(angle_circle > 96) {
-            angle_circle = 90.0456;
+        if(angle_circle > 90.0456 + 6.28) {                      // + 6.28 because that is 360 degrees. My circle and box started 'running away'
+            angle_circle = 90.0456;                         // from the triangle every time they made a full rotation, so i just reset their values
             circle_x = SCREEN_WIDTH/2 + 100;
             circle_y = 210;
         }
         
-        if(angle_box > 107){
+        if(angle_box > 101.3610 + 6.28){
             angle_box = 101.3610;
             box_x = SCREEN_WIDTH/2 - 80;
             box_y = 300;
@@ -867,7 +895,7 @@ void vDemoTask(void *pvParameters)
 
 
         tumDrawUpdateScreen();
-        // Basic sleep of 1000 milliseconds
+        // Chose 80 milliseconds because it seemed to be rather smooth
         vTaskDelay((TickType_t)80);
     }
 }
@@ -904,7 +932,7 @@ int main(int argc, char *argv[])
     }
 
     if (xTaskCreate(vDemoTask, "DemoTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                    mainGENERIC_PRIORITY, &vDemoTask) != pdPASS) {
+                    mainGENERIC_PRIORITY, &Exercise2) != pdPASS) {
         goto err_demotask;
     }
 
