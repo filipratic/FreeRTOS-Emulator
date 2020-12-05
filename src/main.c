@@ -137,6 +137,8 @@ TaskHandle_t notif12 = NULL;
 TaskHandle_t notif21 = NULL;
 TaskHandle_t notif22 = NULL;
 TaskHandle_t increment = NULL;
+TaskHandle_t suspend = NULL;
+TaskHandle_t resume = NULL;
 bool notif1, notif2;
 
 void setFlag1True(void * pvParameters){
@@ -282,24 +284,59 @@ void drawCircle2(void * pvParameters){
 
 
 
-
+int i = 0;
 void increaseVariable(void * pvParameters){
     int a = 0;
     while(1){
         printf("%d\n", a);
         a++;
+
         vTaskDelay((TickType_t)1000);
+    
+    
+    
+    
+    }
+}
+TickType_t count;
+void taskSuspend(void * pvParameters){
+    tumDrawBindThread();
+    while(1){
+        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
+        xGetButtonInput();
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_I]) { // Equiv to SDL_SCANCODE_Q
+                printf("suspending\n");
+                count = xTaskGetTickCount();
+                vTaskSuspend(increment);
+                break;
+            }
+            xSemaphoreGive(buttons.lock);
+        
+    }
+    }
+}
+
+void taskResume(void * pvParameters){
+    tumDrawBindThread();
+    while(1){
+        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
+        xGetButtonInput();
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_I]) { // Equiv to SDL_SCANCODE_Q
+                printf("resuming\n");
+                vTaskSuspend(increment);
+            }
+            xSemaphoreGive(buttons.lock);   
+        }
+        
     }
 }
 
 void vIncrease(){
-    xTaskCreate(increaseVariable,"increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment);
-    tumEventFetchEvents(FETCH_EVENT_NONBLOCK); // Query events backend for new events, ie. button presses
-    xGetButtonInput();
-    if (buttons.buttons[SDL_SCANCODE_I]) { // Equiv to SDL_SCANCODE_Q
-        vTaskSuspend(increment);
-    }
-            
+    xTaskCreate(taskSuspend, "suspend", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &suspend);
+    xTaskCreate(taskResume, "resume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &resume);
+    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment);
         
         
     
