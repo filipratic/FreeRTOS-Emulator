@@ -136,7 +136,7 @@ TaskHandle_t notif11 = NULL;
 TaskHandle_t notif12 = NULL;
 TaskHandle_t notif21 = NULL;
 TaskHandle_t notif22 = NULL;
-
+TaskHandle_t increment = NULL;
 bool notif1, notif2;
 
 void setFlag1True(void * pvParameters){
@@ -281,6 +281,32 @@ void drawCircle2(void * pvParameters){
     }
 
 
+
+
+void increaseVariable(void * pvParameters){
+    int a = 0;
+    while(1){
+        printf("%d\n", a);
+        a++;
+        vTaskDelay((TickType_t)1000);
+    }
+}
+
+void vIncrease(){
+    xTaskCreate(increaseVariable,"increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment);
+    tumEventFetchEvents(FETCH_EVENT_NONBLOCK); // Query events backend for new events, ie. button presses
+    xGetButtonInput();
+    if (buttons.buttons[SDL_SCANCODE_I]) { // Equiv to SDL_SCANCODE_Q
+        vTaskSuspend(increment);
+    }
+            
+        
+        
+    
+
+}
+
+
 int main(int argc, char *argv[])
 {
    char *bin_folder_path = tumUtilGetBinFolderPath(argv[0]);
@@ -307,7 +333,7 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Failed to create buttons lock");
         goto err_buttons_lock;
     }
-      
+      /*
     xTaskCreate(setFlag1True,"flag1true", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &notif11);
     xTaskCreate(setFlag1False,"flag1false", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &notif12);
     xTaskCreate(setFlag2True,"flag2false", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &notif21);
@@ -316,6 +342,12 @@ int main(int argc, char *argv[])
     //xTaskCreateStatic(drawCircle2, "RedCircle", STACK_SIZE, (void *) 1, tskIDLE_PRIORITY, xStack, &xTaskBuffer);
     //xTaskCreate(test,"test", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &testHandle);
     vOtherFunction();
+    */
+    vIncrease();
+
+    
+
+
     vTaskStartScheduler();
  
     return EXIT_SUCCESS;
