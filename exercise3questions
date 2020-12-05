@@ -1,0 +1,2 @@
+A kernel tick is a periodic interrupt of the tasks in the kernel.
+A tickless kernel is a kernel where the interrupts aren't periodic and they are made by the user if required.
