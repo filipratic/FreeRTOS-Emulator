@@ -674,21 +674,7 @@ void vDemoTask2(void *pvParameters)
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
-unsigned short a = 0, b = 0, c = 0, d = 0, mouse_left = 0, mouse_right = 0, mouse_middle = 0, temp = 0;
-
-void debounce(unsigned short* currState){
-    float lastDebounceTime, debounceDelay = 0.020;
-    unsigned short lastButtonState = temp;
-    unsigned short reading = *currState;
-    if(reading != lastButtonState) lastDebounceTime = (float)clock();
-    printf("%f\n", (float)clock() - lastDebounceTime);
-    if(((float)clock() - lastDebounceTime) > debounceDelay){
-        printf("test\n");
-        if(reading != *currState) *currState = reading;
-    }
-    temp = reading;
-
-}
+unsigned short a = 0, b = 0, c = 0, d = 0, mouse_left = 0, mouse_right = 0, mouse_middle = 0;
 
 
 void vDemoTask(void *pvParameters)
@@ -703,7 +689,6 @@ void vDemoTask(void *pvParameters)
     trianglecoords[2].x = SCREEN_WIDTH/2;
     trianglecoords[2].y = 180;
 
-    int cnt = 0;
     //coordinates of the circle
     signed short circle_x = SCREEN_WIDTH/2 + 100;
     signed short circle_y = 210;
@@ -733,7 +718,7 @@ void vDemoTask(void *pvParameters)
         
     signed short mouse_x, mouse_y;
     
-    
+    float firstTime = (float)clock()/CLOCKS_PER_SEC;
     
     
 
@@ -741,6 +726,9 @@ void vDemoTask(void *pvParameters)
     // Only one thread can call tumDrawUpdateScreen while and thread can call
     // the drawing functions to draw objects. This is a limitation of the SDL
     // backend.
+
+    bool pressed_a = false, pressed_b = false, pressed_c = false, pressed_d = false, pressed_LMB = false, pressed_RMB = false, pressed_MMB = false;
+
     tumDrawBindThread();
 
     while (1) {
@@ -782,65 +770,98 @@ void vDemoTask(void *pvParameters)
 
         //Code for using the Semaphore for pressing buttons on the keyboard. Copied from the original clean branch. 
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_A]) { 
-                temp = a;
-                debounce(&a);
-                
+            if (buttons.buttons[SDL_SCANCODE_A]) {
+                if(!pressed_a){
+                    a++;
+                    pressed_a = true;
+                } 
+
+            }   else{
+                pressed_a = false;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+
+    
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_B]) {
+                if(!pressed_b){
+                    b++;
+                    pressed_b = true;
+                } 
+
+            }   else{
+                pressed_b = false;
             }
             xSemaphoreGive(buttons.lock);
         }
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_B]) { 
-                temp = b;
-                b++;
+            if (buttons.buttons[SDL_SCANCODE_C]) {
+                if(!pressed_c){
+                    c++;
+                    pressed_c = true;
+                } 
+
+            }   else{
+                pressed_c = false;
             }
             xSemaphoreGive(buttons.lock);
         }
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_C]) { 
-                temp = c;
-                c++;
-            }
-            xSemaphoreGive(buttons.lock);
-        }
-        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_D]) { 
-                temp = d;
-                d++;
-            }
-            xSemaphoreGive(buttons.lock);
-        }
-        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (tumEventGetMouseLeft()) { 
-                temp = mouse_left;
-                mouse_left++;
-            }
-            xSemaphoreGive(buttons.lock);
-        }
-        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (tumEventGetMouseRight()) { 
-                temp = mouse_right;
-                mouse_right++;
+            if (buttons.buttons[SDL_SCANCODE_D]) {
+                if(!pressed_d){
+                    d++;
+                    pressed_d = true;
+                } 
+
+            }   else{
+                pressed_d = false;
             }
             xSemaphoreGive(buttons.lock);
         }
 
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (tumEventGetMouseMiddle()) { 
-                temp = mouse_middle;
-                mouse_middle++;
+            if (tumEventGetMouseRight()) {
+                if(!pressed_RMB){
+                    mouse_right++;
+                    pressed_RMB = true;
+                } 
+
+            }   else{
+                pressed_RMB = false;
             }
             xSemaphoreGive(buttons.lock);
         }
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (tumEventGetMouseMiddle()) {
+                if(!pressed_MMB){
+                    mouse_middle++;
+                    pressed_MMB = true;
+                } 
+
+            }   else{
+                pressed_MMB = false;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+
+        
 
         //Reseting the values in case LMB gets used
 
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
             if (tumEventGetMouseLeft()) { 
-                a = 0;
-                b = 0; 
-                c = 0;
-                d = 0;
+               if(!pressed_LMB){
+                    mouse_left++;
+                    a = 0;
+                    b = 0;
+                    c = 0;
+                    d = 0;
+                    pressed_LMB = true;
+                } 
+
+            }   else{
+                pressed_LMB = false;
             }
             xSemaphoreGive(buttons.lock);
         }
@@ -878,7 +899,7 @@ void vDemoTask(void *pvParameters)
         angle_box++;
         if(angle_circle > 90.0456 + 6.28) {                      // + 6.28 because that is 360 degrees. My circle and box started 'running away'
             angle_circle = 90.0456;                         // from the triangle every time they made a full rotation, so i just reset their values
-            circle_x = SCREEN_WIDTH/2 + 100;
+            circle_x = SCREEN_WIDTH/2 + 100;                // (90.04 and 101.36 are the values that i got as the start values from a previous print statement)
             circle_y = 210;
         }
         
@@ -896,7 +917,7 @@ void vDemoTask(void *pvParameters)
 
         tumDrawUpdateScreen();
         // Chose 80 milliseconds because it seemed to be rather smooth
-        vTaskDelay((TickType_t)80);
+        vTaskDelay((TickType_t)50);
     }
 }
 
