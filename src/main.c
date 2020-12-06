@@ -137,8 +137,7 @@ TaskHandle_t notif12 = NULL;
 TaskHandle_t notif21 = NULL;
 TaskHandle_t notif22 = NULL;
 TaskHandle_t increment = NULL;
-TaskHandle_t suspend = NULL;
-TaskHandle_t resume = NULL;
+TaskHandle_t susres = NULL;
 bool notif1, notif2;
 
 void setFlag1True(void * pvParameters){
@@ -284,63 +283,74 @@ void drawCircle2(void * pvParameters){
 
 
 
-int i = 0;
+
 void increaseVariable(void * pvParameters){
     int a = 0;
     while(1){
         printf("%d\n", a);
         a++;
-
         vTaskDelay((TickType_t)1000);
-    
-    
-    
-    
-    }
-}
-TickType_t count;
-void taskSuspend(void * pvParameters){
-    tumDrawBindThread();
-    while(1){
-        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
-        xGetButtonInput();
-        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_I]) { // Equiv to SDL_SCANCODE_Q
-                printf("suspending\n");
-                count = xTaskGetTickCount();
-                vTaskSuspend(increment);
-                break;
-            }
-            xSemaphoreGive(buttons.lock);
-        
-    }
     }
 }
 
-void taskResume(void * pvParameters){
-    tumDrawBindThread();
+
+
+
+
+void taskSuspendResume(void * pvParameters){  
+    bool pressed_s = false, pressed_r = false, susFlag = false;
     while(1){
-        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
+        tumEventFetchEvents(FETCH_EVENT_NO_GL_CHECK);
         xGetButtonInput();
-        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_I]) { // Equiv to SDL_SCANCODE_Q
-                printf("resuming\n");
-                vTaskSuspend(increment);
+        if(!susFlag){
+            if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+                if (buttons.buttons[SDL_SCANCODE_I]) { 
+                    if(!pressed_s){
+                        printf("suspending\n");
+                        pressed_s = true;
+                        susFlag = true;
+                        vTaskSuspend(increment);
+                        
+                }
+
+            } else {
+                    pressed_s = false;
+                }
+                
+            xSemaphoreGive(buttons.lock);
             }
-            xSemaphoreGive(buttons.lock);   
+
+        } else
+        {
+            if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+                if (buttons.buttons[SDL_SCANCODE_I]) { 
+                    if(!pressed_r){
+                        printf("resuming\n");
+                        pressed_r = true;
+                        susFlag = false;
+                        vTaskResume(increment);
+                        
+                }
+
+            } else {
+                    pressed_r = false;
+                }
+
+            xSemaphoreGive(buttons.lock);
+            }
+
+        }
         }
         
-    }
-}
+ }   
+     
+
+
 
 void vIncrease(){
-    xTaskCreate(taskSuspend, "suspend", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &suspend);
-    xTaskCreate(taskResume, "resume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &resume);
+    //xTaskCreate(taskResume, "resume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &resume);
     xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment);
-        
-        
-    
-
+    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres);
 }
 
 
