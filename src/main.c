@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <SDL2/SDL_scancode.h>
 
@@ -51,6 +52,9 @@
 #define MSG_QUEUE_MAX_MSG_COUNT 10
 #define TCP_BUFFER_SIZE 2000
 #define TCP_TEST_PORT 2222
+#define STACK_SIZE 200
+
+
 
 #ifdef TRACE_FUNCTIONS
 #include "tracer.h"
@@ -75,6 +79,12 @@ static TaskHandle_t UDPDemoTask = NULL;
 static TaskHandle_t TCPDemoTask = NULL;
 static TaskHandle_t MQDemoTask = NULL;
 static TaskHandle_t DemoSendTask = NULL;
+
+StaticTask_t xTaskBuffer1;
+StaticTask_t xTaskBuffer2;
+StackType_t xStack1[ STACK_SIZE ];
+StackType_t xStack2[ STACK_SIZE ];
+
 
 static QueueHandle_t StateQueue = NULL;
 static SemaphoreHandle_t DrawSignal = NULL;
@@ -670,6 +680,92 @@ void vDemoTask2(void *pvParameters)
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
+
+
+
+void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer,
+                                    StackType_t **ppxIdleTaskStackBuffer,
+                                    uint32_t *pulIdleTaskStackSize )
+{
+/* If the buffers to be provided to the Idle task are declared inside this
+function then they must be declared static – otherwise they will be allocated on
+the stack and so not exists after this function exits. */
+static StaticTask_t xIdleTaskTCB;
+static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Idle task’s
+    state will be stored. */
+    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
+
+    /* Pass out the array that will be used as the Idle task’s stack. */
+    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+
+    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer.
+    Note that, as the array is necessarily of type StackType_t,
+    configMINIMAL_STACK_SIZE is specified in words, not bytes. */
+    *pulIdleTaskStackSize = configMINIMAL_STACK_SIZE;
+}
+
+
+TaskHandle_t drawCircleHandle = NULL;
+TaskHandle_t flagFalse = NULL, flagTrue = NULL;
+
+bool notif;
+
+void setFalse1(void * pvParameters){
+    while(1){
+            notif = false;
+            vTaskDelay((TickType_t)250);
+            
+        
+    }
+}
+void setTrue1(void * pvParameters){ 
+    while(1){
+        notif = true;
+        vTaskDelay(501);
+    }
+}
+
+void setTrue2(void * pvParameters){
+    configASSERT( ( uint32_t ) pvParameters == 1UL );
+    while(1){
+        notif = true;
+        vTaskDelay(251);
+        printf("Swag1\n");
+    }
+}
+
+void setFalse2(void * pvParameters){
+    configASSERT( ( uint32_t ) pvParameters == 1UL );
+    while(1){
+        notif = false;
+        vTaskDelay(125);
+        printf("Swag2\n");
+    }
+}
+
+void drawCircle(void * pvParameters){
+    tumDrawBindThread();
+    while(1){
+        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
+        xGetButtonInput();
+        tumDrawClear(White);
+
+        if(notif) tumDrawCircle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 50, Green);
+        vDrawFPS();
+        tumDrawUpdateScreen();
+
+    }
+}
+
+
+void Setup(){
+    
+}
+
+
+
 int main(int argc, char *argv[])
 {
     char *bin_folder_path = tumUtilGetBinFolderPath(argv[0]);
@@ -741,7 +837,7 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Could not open state queue");
         goto err_state_queue;
     }
-
+/*
     if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
                     mainGENERIC_STACK_SIZE * 2, NULL,
                     configMAX_PRIORITIES - 1, StateMachine) != pdPASS) {
@@ -755,7 +851,7 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-    /** Demo Tasks */
+    // Demo Tasks 
     if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
                     NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
         PRINT_TASK_ERROR("DemoTask1");
@@ -767,13 +863,13 @@ int main(int argc, char *argv[])
         goto err_demotask2;
     }
 
-    /** SOCKETS */
+    /// SOCKETS 
     xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
                 configMAX_PRIORITIES - 1, &UDPDemoTask);
     xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
                 configMAX_PRIORITIES - 1, &TCPDemoTask);
 
-    /** POSIX MESSAGE QUEUES */
+    // POSIX MESSAGE QUEUES 
     xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
                 configMAX_PRIORITIES - 1, &MQDemoTask);
     xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
@@ -783,7 +879,7 @@ int main(int argc, char *argv[])
     vTaskSuspend(DemoTask2);
 
     tumFUtilPrintTaskStateList();
-
+*/
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
