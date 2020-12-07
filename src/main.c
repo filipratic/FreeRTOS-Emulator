@@ -742,46 +742,9 @@ int main(int argc, char *argv[])
         goto err_state_queue;
     }
 
-    if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
-                    mainGENERIC_STACK_SIZE * 2, NULL,
-                    configMAX_PRIORITIES - 1, StateMachine) != pdPASS) {
-        PRINT_TASK_ERROR("StateMachine");
-        goto err_statemachine;
-    }
-    if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
-                    mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
-                    BufferSwap) != pdPASS) {
-        PRINT_TASK_ERROR("BufferSwapTask");
-        goto err_bufferswap;
-    }
 
-    /** Demo Tasks */
-    if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask1");
-        goto err_demotask1;
-    }
-    if (xTaskCreate(vDemoTask2, "DemoTask2", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask2) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask2");
-        goto err_demotask2;
-    }
 
-    /** SOCKETS */
-    xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &UDPDemoTask);
-    xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
-                configMAX_PRIORITIES - 1, &TCPDemoTask);
-
-    /** POSIX MESSAGE QUEUES */
-    xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &MQDemoTask);
-    xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &DemoSendTask);
-
-    vTaskSuspend(DemoTask1);
-    vTaskSuspend(DemoTask2);
-
+    
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();
