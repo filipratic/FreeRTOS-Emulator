@@ -760,8 +760,14 @@ void drawCircle(void * pvParameters){
 }
 
 
+
+
 void Setup(){
-    
+    xTaskCreate(drawCircle, "circle", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawCircleHandle);
+    //xTaskCreate(setFalse1, "setFalse", mainGENERIC_STACK_SIZE, NULL, 1, &flagFalse);
+    //xTaskCreate(setTrue1, "setTrue", mainGENERIC_STACK_SIZE, NULL, 1, &flagTrue);
+    flagTrue = xTaskCreateStatic(setTrue2, "setTrue", STACK_SIZE, (void * )1, 2, xStack1, &xTaskBuffer1);
+    flagFalse = xTaskCreateStatic(setFalse2, "setFalse", STACK_SIZE, (void * )1, 2, xStack2, &xTaskBuffer2);
 }
 
 
@@ -880,6 +886,8 @@ int main(int argc, char *argv[])
 
     tumFUtilPrintTaskStateList();
 */
+
+    Setup();
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
