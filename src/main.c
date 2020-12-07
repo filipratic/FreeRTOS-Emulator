@@ -670,6 +670,37 @@ void vDemoTask2(void *pvParameters)
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
+
+TaskHandle_t task1Handle = NULL;
+TaskHandle_t task2Handle = NULL;
+
+
+void task1(void * pvParameters){
+    int notificationValue;
+    while(1){
+        notificationValue = ulTaskNotifyTake(pdTRUE, (TickType_t) portMAX_DELAY);
+        printf("%d\n", notificationValue);
+    }
+}
+
+void task2(void * p){
+    while(1){
+        xTaskNotifyGive(task1Handle);
+        
+        vTaskDelay(1000);
+    }
+}
+
+
+void Setup(){
+    xTaskCreate(task1, "task1", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task1Handle);
+    xTaskCreate(task2, "task2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task2Handle);
+}
+
+
+
+
+
 int main(int argc, char *argv[])
 {
     char *bin_folder_path = tumUtilGetBinFolderPath(argv[0]);
@@ -743,14 +774,14 @@ int main(int argc, char *argv[])
     }
 
 
-
+    Setup();
     
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
-
+/*
 err_demotask2:
     vTaskDelete(DemoTask1);
 err_demotask1:
@@ -759,6 +790,7 @@ err_bufferswap:
     vTaskDelete(StateMachine);
 err_statemachine:
     vQueueDelete(StateQueue);
+    */
 err_state_queue:
     vSemaphoreDelete(ScreenLock);
 err_screen_lock:
