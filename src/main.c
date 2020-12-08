@@ -672,41 +672,110 @@ void vDemoTask2(void *pvParameters)
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
 
-TaskHandle_t task1Handle = NULL;
-TaskHandle_t task2Handle = NULL;
-int a = 0;
-
+TaskHandle_t task1Handle = NULL, task2Handle = NULL, task2NotifHandle = NULL, stateListHandle = NULL;
+TaskHandle_t task1NotifHandle = NULL;
+SemaphoreHandle_t task2SemHandle = NULL;
+int a = 0, d = 0;
+bool flag;
 
 void task1(void * p){
     uint32_t notificationValue;
+    char task1pressed[30];
     while(1){
-        xTaskNotifyWait(0,0, &notificationValue, (TickType_t)0);
+        tumDrawClear(White);
+        xTaskNotifyWait(0,0, &notificationValue, 0);
+        sprintf(task1pressed, "A was pressed : %d times", a);
         if(notificationValue == 1){
-            printf("A was pressed: %d number of times\n", a);
+        
+            tumDrawText(task1pressed, 3*SCREEN_WIDTH/4 - 30, SCREEN_HEIGHT - 30, Black);
         }
+        
         vTaskDelay((TickType_t)10);
     }
     
 }
 
+void taskStateList(void *p){
+    while(1){
+        tumFUtilPrintTaskStateList();
+        vTaskDelay(100);
+    }
+}
+
+void task1Notif(void * p){
+    bool pressed = false;
+
+    while(1){
+        xGetButtonInput();
+            if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+               if (buttons.buttons[SDL_SCANCODE_A]) {
+                    if(!pressed){
+                        pressed = true;
+                        xTaskNotify(task1Handle, 1 << 0, eSetBits);
+                        a++;
+                    }
+                } else {
+                    pressed = false;
+                }
+                xSemaphoreGive(buttons.lock);
+            }  
+        
+
+
+
+        }
+        
+}
+char task2pressed[30];
+
+void printText2(void * p){
+    while(1){
+        if(flag){
+            tumDrawText(task2pressed, 3 * SCREEN_WIDTH/4 - 30, SCREEN_HEIGHT - 60, Black);
+            tumDrawCircle(100,200,50,Red);
+        }
+        vTaskDelay(10);
+    }
+}
+
 void task2(void * p){
+    
+    while(1){
+        if(xSemaphoreTake(task2SemHandle, portMAX_DELAY) == pdTRUE){
+            d++;
+            sprintf(task2pressed, "D was pressed %d times.", d);
+        } else {
+            printf("Couldn't take semaphore\n");
+        }
+        
+        printf("1\n");
+        vTaskDelay(100);
+    }
+}
+
+
+
+void task2Notif(void * p){
     bool pressed = false;
 
     while(1){
         xGetButtonInput();
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_A]) {
+            if (buttons.buttons[SDL_SCANCODE_D]) {
                 if(!pressed){
                     pressed = true;
-                    xTaskNotify(task1Handle, 1 << 0, eSetBits);
-                    a++;
+                    flag = true;
+                    xSemaphoreGive(task2SemHandle);
+
                 }
             } else {
                 pressed = false;
             }
             xSemaphoreGive(buttons.lock);
-        }  
+        } 
+        
     }
+    
 }
 
 
@@ -732,8 +801,12 @@ void task2(void * p){
 */
 
 void Setup(){
+    task2SemHandle = xSemaphoreCreateBinary();
     xTaskCreate(task1, "task1", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task1Handle);
-    xTaskCreate(task2, "task2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task2Handle);
+    xTaskCreate(task1Notif, "task1Notif", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task1NotifHandle);
+    xTaskCreate(task2,"task2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task2Handle);
+    xTaskCreate(task2Notif, "notif2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task2NotifHandle);
+    xTaskCreate(printText2, "printText2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &stateListHandle);
 }
 
 
