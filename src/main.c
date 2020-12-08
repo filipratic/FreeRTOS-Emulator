@@ -676,44 +676,60 @@ TaskHandle_t task1Handle = NULL;
 TaskHandle_t task2Handle = NULL;
 int a = 0;
 
-void task1(void * pvParameters){
-    int notificationValue;
+
+void task1(void * p){
+    uint32_t notificationValue;
     while(1){
-        tumDrawClear(White);
-        notificationValue = ulTaskNotifyTake(pdTRUE, (TickType_t) portMAX_DELAY);
-        printf("%d\n", notificationValue);
-        if(notificationValue){
+        xTaskNotifyWait(0,0, &notificationValue, (TickType_t)0);
+        if(notificationValue == 1){
             printf("A was pressed: %d number of times\n", a);
         }
-        tumDrawUpdateScreen();
+        vTaskDelay((TickType_t)10);
     }
+    
 }
 
 void task2(void * p){
     bool pressed = false;
 
     while(1){
-        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
         xGetButtonInput();
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
             if (buttons.buttons[SDL_SCANCODE_A]) {
                 if(!pressed){
                     pressed = true;
-                    xTaskNotifyGive(task1Handle);
+                    xTaskNotify(task1Handle, 1 << 0, eSetBits);
                     a++;
                 }
             } else {
                 pressed = false;
             }
             xSemaphoreGive(buttons.lock);
-        }
-        tumDrawClear(White);
-        tumDrawUpdateScreen();
-        
-        
+        }  
     }
 }
 
+
+/*
+void task1(void * p){
+    while(1){
+        xTaskNotify(task2Handle, 1 << 0, eSetBits);
+    }
+    vTaskDelay(1000);
+}
+
+void task2(void * p){
+    uint32_t ulNotifiedValue;
+    while(1){
+        if(xTaskNotifyWait(0,0, &ulNotifiedValue, portMAX_DELAY) == pdTRUE){
+            printf("notification received %d\n", ulNotifiedValue);
+        }
+        printf("notification received %d\n", ulNotifiedValue);
+        vTaskDelay(100);
+    }
+}
+
+*/
 
 void Setup(){
     xTaskCreate(task1, "task1", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task1Handle);
@@ -795,6 +811,12 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Could not open state queue");
         goto err_state_queue;
     }
+    if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
+                    mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
+                    BufferSwap) != pdPASS) {
+        PRINT_TASK_ERROR("BufferSwapTask");
+        goto err_bufferswap;
+    }
 
 
     Setup();
@@ -814,6 +836,9 @@ err_bufferswap:
 err_statemachine:
     vQueueDelete(StateQueue);
     */
+
+err_bufferswap:
+    vTaskDelete(StateMachine);
 err_state_queue:
     vSemaphoreDelete(ScreenLock);
 err_screen_lock:
