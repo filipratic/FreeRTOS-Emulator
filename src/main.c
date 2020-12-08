@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <SDL2/SDL_scancode.h>
 
@@ -673,21 +674,43 @@ void vDemoTask2(void *pvParameters)
 
 TaskHandle_t task1Handle = NULL;
 TaskHandle_t task2Handle = NULL;
-
+int a = 0;
 
 void task1(void * pvParameters){
     int notificationValue;
     while(1){
+        tumDrawClear(White);
         notificationValue = ulTaskNotifyTake(pdTRUE, (TickType_t) portMAX_DELAY);
         printf("%d\n", notificationValue);
+        if(notificationValue){
+            printf("A was pressed: %d number of times\n", a);
+        }
+        tumDrawUpdateScreen();
     }
 }
 
 void task2(void * p){
+    bool pressed = false;
+
     while(1){
-        xTaskNotifyGive(task1Handle);
+        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
+        xGetButtonInput();
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_A]) {
+                if(!pressed){
+                    pressed = true;
+                    xTaskNotifyGive(task1Handle);
+                    a++;
+                }
+            } else {
+                pressed = false;
+            }
+            xSemaphoreGive(buttons.lock);
+        }
+        tumDrawClear(White);
+        tumDrawUpdateScreen();
         
-        vTaskDelay(1000);
+        
     }
 }
 
