@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <SDL2/SDL_scancode.h>
 
@@ -668,9 +669,10 @@ void vDemoTask2(void *pvParameters)
     }
 }
 
-#define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
 
+TaskHandle_t increment = NULL;
+TaskHandle_t susres = NULL;
 
 
 void increaseVariable(void * pvParameters){
@@ -678,6 +680,8 @@ void increaseVariable(void * pvParameters){
     while(1){
         printf("%d\n", a);
         a++;
+       // tumFUtilPrintTaskStateList();
+       // printf("\n################\n");
         vTaskDelay((TickType_t)1000);
     }
 }
@@ -688,8 +692,8 @@ void increaseVariable(void * pvParameters){
 
 void taskSuspendResume(void * pvParameters){  
     bool pressed_s = false, pressed_r = false, susFlag = false;
+   // vTaskSuspend(susres);
     while(1){
-        tumEventFetchEvents(FETCH_EVENT_NO_GL_CHECK);
         xGetButtonInput();
         if(!susFlag){
     
@@ -734,13 +738,25 @@ void taskSuspendResume(void * pvParameters){
         
  }   
      
-
-
+TaskHandle_t testHandle;
+void Test(void * p){
+    int i = 0;
+    while(1){
+        
+        
+    
+        i++;
+        printf("%d\n", i);
+        vTaskDelay(10);
+    }
+}
 
 void vIncrease(){
     //xTaskCreate(taskResume, "resume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &resume);
-    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, 1, &increment);
-    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, 1, &susres);
+    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment);
+    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres);
+    xTaskCreate(Test, "test", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &testHandle);
+
 }
 
 
@@ -749,7 +765,7 @@ void vIncrease(){
 
 
 
-
+#define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
 int main(int argc, char *argv[])
 {
@@ -823,12 +839,7 @@ int main(int argc, char *argv[])
         goto err_state_queue;
     }
 
-    if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
-                    mainGENERIC_STACK_SIZE * 2, NULL,
-                    configMAX_PRIORITIES - 1, StateMachine) != pdPASS) {
-        PRINT_TASK_ERROR("StateMachine");
-        goto err_statemachine;
-    }
+  
     if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
                     mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
                     BufferSwap) != pdPASS) {
@@ -836,32 +847,10 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-    /** Demo Tasks */
-    if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask1");
-        goto err_demotask1;
-    }
-    if (xTaskCreate(vDemoTask2, "DemoTask2", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask2) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask2");
-        goto err_demotask2;
-    }
+   
 
-    /** SOCKETS */
-    xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &UDPDemoTask);
-    xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
-                configMAX_PRIORITIES - 1, &TCPDemoTask);
-
-    /** POSIX MESSAGE QUEUES */
-    xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &MQDemoTask);
-    xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &DemoSendTask);
-
-    vTaskSuspend(DemoTask1);
-    vTaskSuspend(DemoTask2);
+    
+    vIncrease();
 
     tumFUtilPrintTaskStateList();
 
@@ -869,14 +858,8 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 
-err_demotask2:
-    vTaskDelete(DemoTask1);
-err_demotask1:
-    vTaskDelete(BufferSwap);
 err_bufferswap:
     vTaskDelete(StateMachine);
-err_statemachine:
-    vQueueDelete(StateQueue);
 err_state_queue:
     vSemaphoreDelete(ScreenLock);
 err_screen_lock:
