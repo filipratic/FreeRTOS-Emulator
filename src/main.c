@@ -670,6 +670,87 @@ void vDemoTask2(void *pvParameters)
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
+
+
+
+void increaseVariable(void * pvParameters){
+    int a = 0;
+    while(1){
+        printf("%d\n", a);
+        a++;
+        vTaskDelay((TickType_t)1000);
+    }
+}
+
+
+
+
+
+void taskSuspendResume(void * pvParameters){  
+    bool pressed_s = false, pressed_r = false, susFlag = false;
+    while(1){
+        tumEventFetchEvents(FETCH_EVENT_NO_GL_CHECK);
+        xGetButtonInput();
+        if(!susFlag){
+    
+            if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+                if (buttons.buttons[SDL_SCANCODE_I]) { 
+                    if(!pressed_s){
+                        printf("suspending\n");
+                        pressed_s = true;
+                        susFlag = true;
+                        vTaskSuspend(increment);
+                        
+                }
+
+            } else {
+                    pressed_s = false;
+                }
+                
+            xSemaphoreGive(buttons.lock);
+            }
+
+        } else
+        {
+            if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+                if (buttons.buttons[SDL_SCANCODE_I]) { 
+                    if(!pressed_r){
+                        printf("resuming\n");
+                        pressed_r = true;
+                        susFlag = false;
+                        vTaskResume(increment);
+                        
+                }
+
+            } else {
+                    pressed_r = false;
+                }
+
+            xSemaphoreGive(buttons.lock);
+            }
+
+        }
+        }
+        
+ }   
+     
+
+
+
+void vIncrease(){
+    //xTaskCreate(taskResume, "resume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &resume);
+    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, 1, &increment);
+    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, 1, &susres);
+}
+
+
+
+
+
+
+
+
+
 int main(int argc, char *argv[])
 {
     char *bin_folder_path = tumUtilGetBinFolderPath(argv[0]);
