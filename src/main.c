@@ -746,15 +746,17 @@ void setFalse2(void * pvParameters){
 }
 
 void drawCircle(void * pvParameters){
-    tumDrawBindThread();
     while(1){
-        tumEventFetchEvents(FETCH_EVENT_NONBLOCK);
-        xGetButtonInput();
-        tumDrawClear(White);
-
-        if(notif) tumDrawCircle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 50, Green);
-        vDrawFPS();
-        tumDrawUpdateScreen();
+        if(DrawSignal){
+            if (xSemaphoreTake(DrawSignal, portMAX_DELAY) ==
+                pdTRUE) {
+                xSemaphoreTake(ScreenLock, portMAX_DELAY);
+                checkDraw(tumDrawClear(White), __FUNCTION__);
+                checkDraw(tumDrawCircle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 50, Green), __FUNCTION__);
+                vDrawFPS();
+                xSemaphoreGive(ScreenLock);
+                }
+        }
 
     }
 }
@@ -762,15 +764,16 @@ void drawCircle(void * pvParameters){
 
 
 
-void Setup(){
-    xTaskCreate(drawCircle, "circle", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawCircleHandle);
-    //xTaskCreate(setFalse1, "setFalse", mainGENERIC_STACK_SIZE, NULL, 1, &flagFalse);
-    //xTaskCreate(setTrue1, "setTrue", mainGENERIC_STACK_SIZE, NULL, 1, &flagTrue);
-    flagTrue = xTaskCreateStatic(setTrue2, "setTrue", STACK_SIZE, (void * )1, 2, xStack1, &xTaskBuffer1);
-    flagFalse = xTaskCreateStatic(setFalse2, "setFalse", STACK_SIZE, (void * )1, 2, xStack2, &xTaskBuffer2);
+TaskHandle_t testHandle = NULL;
+
+void test(void * p){
+    int a = 0;
+    while(1){
+        a++;
+        printf("%d\n", a);
+        vTaskDelay(1000);
+    }
 }
-
-
 
 int main(int argc, char *argv[])
 {
@@ -843,13 +846,7 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Could not open state queue");
         goto err_state_queue;
     }
-/*
-    if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
-                    mainGENERIC_STACK_SIZE * 2, NULL,
-                    configMAX_PRIORITIES - 1, StateMachine) != pdPASS) {
-        PRINT_TASK_ERROR("StateMachine");
-        goto err_statemachine;
-    }
+
     if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
                     mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
                     BufferSwap) != pdPASS) {
@@ -857,49 +854,25 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-    // Demo Tasks 
-    if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask1");
-        goto err_demotask1;
+    if(xTaskCreate(test, "test", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, testHandle) != pdPASS){
+        PRINT_TASK_ERROR("TEST");
     }
-    if (xTaskCreate(vDemoTask2, "DemoTask2", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask2) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask2");
-        goto err_demotask2;
+    
+    if(xTaskCreate(drawCircle, "circle", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawCircleHandle) != pdPASS){
+        PRINT_TASK_ERROR("CIRCLE");
     }
-
-    /// SOCKETS 
-    xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &UDPDemoTask);
-    xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
-                configMAX_PRIORITIES - 1, &TCPDemoTask);
-
-    // POSIX MESSAGE QUEUES 
-    xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &MQDemoTask);
-    xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &DemoSendTask);
-
-    vTaskSuspend(DemoTask1);
-    vTaskSuspend(DemoTask2);
+    
 
     tumFUtilPrintTaskStateList();
-*/
 
-    Setup();
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
 
-err_demotask2:
-    vTaskDelete(DemoTask1);
-err_demotask1:
-    vTaskDelete(BufferSwap);
+
+
 err_bufferswap:
     vTaskDelete(StateMachine);
-err_statemachine:
-    vQueueDelete(StateQueue);
 err_state_queue:
     vSemaphoreDelete(ScreenLock);
 err_screen_lock:
