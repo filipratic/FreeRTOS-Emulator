@@ -679,14 +679,10 @@ TaskHandle_t susres = NULL;
 
 void increaseVariable(void * pvParameters){
     int a = 0;
-    TickType_t delay = 1000;
-    char text[1];
+    TickType_t delay = 100;
     while(1){
         a++;
-        sprintf(text, "%d", a);
-        printf("%s\n", text);
-        tumDrawCircle(100,100,100, Red);
-        tumDrawClear(White);
+        printf("%d\n", a);
         vTaskDelay(delay/portTICK_PERIOD_MS);
     }
 }
@@ -698,7 +694,6 @@ void increaseVariable(void * pvParameters){
 void taskSuspendResume(void * pvParameters){  
     bool pressed_i = false, susFlag = false;  //susFlag keeps track of the current state of the increment function. False == not suspended
     while(1){                                                      //True == suspended
-        tumEventFetchEvents(FETCH_EVENT_NO_GL_CHECK);
         xGetButtonInput();
               //in the first iteration, susFlag needs to be false(since the task isn't suspended).
             if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
@@ -720,15 +715,25 @@ void taskSuspendResume(void * pvParameters){
                 }
                 xSemaphoreGive(buttons.lock);
             }      
+            tumFUtilPrintTaskStateList();
  }
 }
-     
-
+    
+TaskHandle_t testHandle;
+void test(void *p){
+    int a = 0;
+    while(1){
+        a++;
+        printf("%d\n", a);
+        vTaskDelay(100);
+    }
+}
 
 
 void vIncrease(){
-    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment);
-    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres);
+    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, 9, &increment);
+    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, 9, &susres);
+    xTaskCreate(test, "test", mainGENERIC_STACK_SIZE, NULL, 9, &testHandle);
 }
 
 
@@ -781,8 +786,6 @@ int main(int argc, char *argv[])
         goto err_init_safe_print;
     }
 
-    logo_image = tumDrawLoadImage(LOGO_FILENAME);
-
 
     buttons.lock = xSemaphoreCreateMutex(); // Locking mechanism
     if (!buttons.lock) {
@@ -808,8 +811,7 @@ int main(int argc, char *argv[])
         goto err_state_queue;
     }
 
-    vIncrease();
-
+/*
     if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
                     mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
                     BufferSwap) != pdPASS) {
@@ -818,18 +820,21 @@ int main(int argc, char *argv[])
     }
 
    
-
+*/ 
     
 
+    vIncrease();
 
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
-
+/*
 err_bufferswap:
     vTaskDelete(StateMachine);
+
+    */
 err_state_queue:
     vSemaphoreDelete(ScreenLock);
 err_screen_lock:
