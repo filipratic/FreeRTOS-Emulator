@@ -79,6 +79,9 @@ static TaskHandle_t UDPDemoTask = NULL;
 static TaskHandle_t TCPDemoTask = NULL;
 static TaskHandle_t MQDemoTask = NULL;
 static TaskHandle_t DemoSendTask = NULL;
+TaskHandle_t drawCircleHandle = NULL;
+TaskHandle_t flagFalse = NULL, flagTrue = NULL;
+TaskHandle_t increment = NULL, susres = NULL;
 
 StaticTask_t xTaskBuffer1;
 StaticTask_t xTaskBuffer2;
@@ -707,49 +710,31 @@ static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
 }
 
 
-TaskHandle_t drawCircleHandle = NULL;
-TaskHandle_t flagFalse = NULL, flagTrue = NULL;
+TaskHandle_t flag1Handle = NULL, flag2Handle = NULL;
 
-bool notif;
+void circle1(void * p){
+    bool check = false;
+    TickType_t xLastWakeTime;
+    const TickType_t xFrequency = 1;
+    const TickType_t xPeriod = 1000/xFrequency/portTICK_PERIOD_MS;
 
-void setFalse1(void * pvParameters){
+    xLastWakeTime = xTaskGetTickCount();
     while(1){
-            notif = false;
-            vTaskDelay((TickType_t)250);
-            
+        check = !check;
+        if(check){
+            xTaskNotifyGive(drawCircleHandle);
+        }
         
-    }
-}
-void setTrue1(void * pvParameters){ 
-    while(1){
-        notif = true;
-        vTaskDelay(501);
+        vTaskDelayUntil(&xLastWakeTime, xPeriod/2);
     }
 }
 
-void setTrue2(void * pvParameters){
-    configASSERT( ( uint32_t ) pvParameters == 1UL );
-    while(1){
-        notif = true;
-        vTaskDelay(251);
-        printf("Swag1\n");
-    }
-}
 
-void setFalse2(void * pvParameters){
-    configASSERT( ( uint32_t ) pvParameters == 1UL );
-    while(1){
-        notif = false;
-        vTaskDelay(125);
-        printf("Swag2\n");
-    }
-}
 
 void drawCircle(void * pvParameters){
     while(1){
         if(DrawSignal){
-            if (xSemaphoreTake(DrawSignal, portMAX_DELAY) ==
-                pdTRUE) {
+            if (xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE) {
                 xSemaphoreTake(ScreenLock, portMAX_DELAY);
                 checkDraw(tumDrawClear(White), __FUNCTION__);
                 checkDraw(tumDrawCircle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 50, Green), __FUNCTION__);
@@ -764,16 +749,61 @@ void drawCircle(void * pvParameters){
 
 
 
-TaskHandle_t testHandle = NULL;
 
-void test(void * p){
+
+void increaseVariable(void * pvParameters){
     int a = 0;
+    TickType_t delay = 1000;
     while(1){
-        a++;
-        printf("%d\n", a);
-        vTaskDelay(1000);
+        if(DrawSignal){
+            if (xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE) {
+                    a++;
+                    vTaskDelay(delay/portTICK_PERIOD_MS);
+                }
+        }
     }
 }
+
+
+
+//Task that resumes/suspends increaseVariable()
+//pressed_s and pressed_r are used for debouncing. if it wasn't pressed, it can be pressed.
+void taskSuspendResume(void * pvParameters){  
+    bool pressed_i = false, susFlag = false;  //susFlag keeps track of the current state of the increment function. False == not suspended
+    while(1){
+        if(DrawSignal){
+            if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
+                xGetButtonInput();
+              //in the first iteration, susFlag needs to be false(since the task isn't suspended).
+                if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
+                    if (buttons.buttons[SDL_SCANCODE_I]) { 
+                        if(!pressed_i){ 
+                            pressed_i = true;
+                            if(!susFlag){                         
+                                printf("suspending\n");                
+                                susFlag = true;                             //flag is true, since the task is now in a suspended state
+                                vTaskSuspend(increment);
+                            }else{
+                                printf("resuming\n");
+                                susFlag = false;                    //mark the flag as false, since it gets resumed and not suspended anymore.
+                                vTaskResume(increment);
+                            }    
+                        }
+                    } else {
+                        pressed_i = false;
+                    }
+                    xSemaphoreGive(buttons.lock);
+                }      
+            }
+        }                                                      //True == suspended
+        
+ }
+}
+     
+
+
+
+
 
 int main(int argc, char *argv[])
 {
@@ -853,11 +883,15 @@ int main(int argc, char *argv[])
         PRINT_TASK_ERROR("BufferSwapTask");
         goto err_bufferswap;
     }
-
-    if(xTaskCreate(test, "test", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, testHandle) != pdPASS){
-        PRINT_TASK_ERROR("TEST");
+/*
+    if(xTaskCreate(increaseVariable,"increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment) != pdPASS){
+        PRINT_TASK_ERROR("INCREMENT");
     }
-    
+
+    if(xTaskCreate(taskSuspendResume, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres) != pdPASS){
+        PRINT_TASK_ERROR("SUSPENDRESUME");
+    }
+    */
     if(xTaskCreate(drawCircle, "circle", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawCircleHandle) != pdPASS){
         PRINT_TASK_ERROR("CIRCLE");
     }
