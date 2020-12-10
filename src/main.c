@@ -700,7 +700,8 @@ void taskSuspendResume(void * pvParameters){
         if(DrawSignal){
             if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
                 xGetButtonInput();
-                tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black);
+                xSemaphoreTake(ScreenLock, portMAX_DELAY);
+                checkDraw(tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black), __FUNCTION__);
                 if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
                     if (buttons.buttons[SDL_SCANCODE_I]) { 
                         if(!pressed_i){ 
@@ -711,7 +712,7 @@ void taskSuspendResume(void * pvParameters){
                                 vTaskSuspend(increment);
                             }else{
                                 printf("resuming\n");
-                                susFlag = false;                    //mark the flag as false, since it gets resumed and not suspended anymore.
+                                susFlag = false;                    //mark the flag as false, since it gets resumed and is not suspended anymore.
                                 vTaskResume(increment);
                             }    
                         }
@@ -720,17 +721,13 @@ void taskSuspendResume(void * pvParameters){
                     }
                     xSemaphoreGive(buttons.lock);
                 }  
-                vDrawFPS();    
+                vDrawFPS();   
+                xSemaphoreGive(ScreenLock); 
             }
         }                                                      //True == suspended
         
  }
 }
-     
-
-
-
-
 
 
 
