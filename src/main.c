@@ -671,69 +671,138 @@ void vDemoTask2(void *pvParameters)
 
 
 
-TaskHandle_t increment = NULL;
-TaskHandle_t susres = NULL;
+TaskHandle_t task1Handle = NULL, task2Handle = NULL, task2NotifHandle = NULL, stateListHandle = NULL;
+TaskHandle_t task1NotifHandle = NULL, drawWhiteHandle = NULL;
+SemaphoreHandle_t task2Sem = NULL;
 
 
 
-void increaseVariable(void * pvParameters){
-    TickType_t delay = 1000;
+
+void task1(void * p){
+    char task1pressed[30];
+    int a = 0;
+    bool start = false;
     while(1){
-        xTaskNotifyGive(susres);
-        vTaskDelay(delay/portTICK_PERIOD_MS);
-        }
-}
-
-
-
-
-//Task that resumes/suspends increaseVariable()
-//pressed_s and pressed_r are used for debouncing. if it wasn't pressed, it can be pressed.
-void taskSuspendResume(void * pvParameters){  
-    bool pressed_i = false, susFlag = false;
-    int counter = 0;
-    char var[100];
-    while(1){
-        sprintf(var, "Increment value : %d", counter);
-        if(ulTaskNotifyTake(pdTRUE,0) == 1) counter++;
-        if(DrawSignal){
-            if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
-                xGetButtonInput();
-                xSemaphoreTake(ScreenLock, portMAX_DELAY);
-                checkDraw(tumDrawClear(White), __FUNCTION__);
-                checkDraw(tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black), __FUNCTION__);
-                if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
-                    if (buttons.buttons[SDL_SCANCODE_I]) { 
-                        if(!pressed_i){ 
-                            pressed_i = true;
-                            if(!susFlag){                         
-                                printf("suspending\n");                
-                                susFlag = true;                             //flag is true, since the task is now in a suspended state
-                                vTaskSuspend(increment);
-                            }else{
-                                printf("resuming\n");
-                                susFlag = false;                    //mark the flag as false, since it gets resumed and is not suspended anymore.
-                                vTaskResume(increment);
-                            }    
-                        }
-                    } else {
-                        pressed_i = false;
-                    }
-                    xSemaphoreGive(buttons.lock);
-                }  
-                vDrawFPS();   
-                xSemaphoreGive(ScreenLock); 
-            }
-        }                                                      //True == suspended
+        if(ulTaskNotifyTake(pdTRUE, 0) == pdTRUE){
+            start = true;
+            a++;
+        } 
         
- }
+        if(start){
+            if(DrawSignal){
+                if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
+                    xSemaphoreTake(ScreenLock, portMAX_DELAY);
+                    sprintf(task1pressed, "A was pressed : %d times", a);
+                    checkDraw(tumDrawClear(White), __FUNCTION__);
+                    checkDraw(tumDrawText(task1pressed, SCREEN_WIDTH/2 - 30, SCREEN_HEIGHT - 30, Black), __FUNCTION__);
+                    
+                    vDrawFPS();
+                    
+                    xSemaphoreGive(ScreenLock);
+                }
+            }
+                 
+        }        
+        
+    }
+    
+}
+
+
+void task1Notif(void * p){
+    bool pressed = false;
+
+    while(1){
+        xGetButtonInput();        
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_A]) {
+                if(!pressed){
+                    pressed = true;
+                    xTaskNotifyGive(task1Handle);
+                }
+                } else {
+                    pressed = false;
+                }
+            xSemaphoreGive(buttons.lock);
+            }  
+        }        
 }
 
 
 
 
+void task2(void * p){
+    bool start = false;
+    char task2pressed[30];
+    int d = 0;
+    while(1){
+        
+        if(xSemaphoreTake(task2Sem, 0) == pdTRUE){
+            start = true;
+            d++;
+            
+        }
+
+        if(start){
+            
+            if (DrawSignal){
+                
+                if (xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE) {
+                    xSemaphoreTake(ScreenLock, portMAX_DELAY);
+            
+                    sprintf(task2pressed, "D was pressed %d times.", d);
+                    
+                    checkDraw(tumDrawClear(White), __FUNCTION__);
+                    checkDraw(tumDrawText(task2pressed, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black), __FUNCTION__);
+
+                    xSemaphoreGive(ScreenLock);                    
+            }
+        }    
+    }
+}
+}
 
 
+
+void task2Notif(void * p){
+    bool pressed = false;
+
+    while(1){        
+        xGetButtonInput();        
+        if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
+            if (buttons.buttons[SDL_SCANCODE_D]) {
+                if(!pressed){
+                    pressed = true;
+
+                    xSemaphoreGive(task2Sem);
+
+                }
+            } else {
+                pressed = false;
+            }
+            xSemaphoreGive(buttons.lock);
+        } 
+        
+    }
+    
+}
+/*
+TaskHandle_t testHandle = NULL, notifyTestHandle = NULL;
+
+void testTask(void *p){
+    while(1){
+        if()
+    }
+}
+
+
+void notifyTestTask(void * p){
+    while(1){
+        xSemaphoreGive(testHandle);
+    }
+}
+
+*/
 
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
@@ -791,6 +860,12 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Failed to create draw signal");
         goto err_draw_signal;
     }
+
+    task2Sem = xSemaphoreCreateBinary();
+    if(task2Sem == NULL){
+        PRINT_TASK_ERROR("Failed to create binary semaphore for the second task.");
+    }
+
     ScreenLock = xSemaphoreCreateMutex();
     if (!ScreenLock) {
         PRINT_ERROR("Failed to create screen lock");
@@ -812,15 +887,25 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-    if(xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment) != pdPASS){
-        PRINT_TASK_ERROR("Increment task");
+    if(xTaskCreate(task1, "task1", mainGENERIC_STACK_SIZE, NULL, 2, &task1Handle) != pdPASS){
+        PRINT_TASK_ERROR("Could not start task1");
     }
 
-    if(xTaskCreate(taskSuspendResume, "suspendResume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres) != pdPASS){
-        PRINT_TASK_ERROR("SuspendResume");
+    if(xTaskCreate(task1Notif, "task1Notif", mainGENERIC_STACK_SIZE, NULL, 2, &task1NotifHandle) != pdPASS){
+        PRINT_TASK_ERROR("Could not start the task to send notif to task1");
     }
-   
 
+    if(xTaskCreate(task2, "task2", mainGENERIC_STACK_SIZE, NULL, 2, &task2Handle) != pdPASS){
+        PRINT_TASK_ERROR("Could not start task2");
+    }
+
+
+    if(xTaskCreate(task2Notif, "task2Notif", mainGENERIC_STACK_SIZE, NULL, 2, &task2NotifHandle) != pdPASS){
+        PRINT_TASK_ERROR("Could not start the task to send notif to task1");
+    }
+ 
+
+    
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();
