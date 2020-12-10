@@ -83,15 +83,14 @@ TaskHandle_t drawCircleHandle = NULL;
 TaskHandle_t flagFalse = NULL, flagTrue = NULL;
 TaskHandle_t increment = NULL, susres = NULL;
 
-StaticTask_t xTaskBuffer1;
-StaticTask_t xTaskBuffer2;
-StackType_t xStack1[ STACK_SIZE ];
-StackType_t xStack2[ STACK_SIZE ];
+StaticTask_t xTaskBuffer;
+StackType_t xStack[ STACK_SIZE ];
 
 
 static QueueHandle_t StateQueue = NULL;
 static SemaphoreHandle_t DrawSignal = NULL;
 static SemaphoreHandle_t ScreenLock = NULL;
+static SemaphoreHandle_t BoolLock = NULL;
 
 static image_handle_t logo_image = NULL;
 
@@ -712,6 +711,8 @@ static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
 
 TaskHandle_t flag1Handle = NULL, flag2Handle = NULL;
 bool check1 = false, check2 = false;
+
+
 void circle1(void * p){
     TickType_t xLastTick;
     const TickType_t freq = 1;
@@ -720,9 +721,9 @@ void circle1(void * p){
     xLastTick = xTaskGetTickCount();
     
     while(1){
-        if(xSemaphoreTake(buttons.lock,0) == pdTRUE){
+        if(xSemaphoreTake(BoolLock,0) == pdTRUE){
             check1 = !check1;
-            xSemaphoreGive(buttons.lock);
+            xSemaphoreGive(BoolLock);
         }
 
 
@@ -736,13 +737,13 @@ void circle2(void * p){
     TickType_t period;
     period = 1000/freq/portTICK_PERIOD_MS;
     xLastTick = xTaskGetTickCount();
+    configASSERT( ( uint32_t ) pvParameters == 1UL );
     
     while(1){
-        if(xSemaphoreTake(buttons.lock,0) == pdTRUE){
+        if(xSemaphoreTake(BoolLock,0) == pdTRUE){
             check2 = !check2;
-            xSemaphoreGive(buttons.lock);
+            xSemaphoreGive(BoolLock);
         }
-
 
         vTaskDelayUntil(&xLastTick, period/2);
     }
@@ -878,6 +879,11 @@ int main(int argc, char *argv[])
         goto err_buttons_lock;
     }
 
+    BoolLock = xSemaphoreCreateMutex();
+    if(!BoolLock){
+        PRINT_ERROR("Failed to lock the bool value");
+    }
+
     DrawSignal = xSemaphoreCreateBinary(); // Screen buffer locking
     if (!DrawSignal) {
         PRINT_ERROR("Failed to create draw signal");
@@ -912,16 +918,18 @@ int main(int argc, char *argv[])
     }
     */
     if(xTaskCreate(drawCircle, "circle", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawCircleHandle) != pdPASS){
-        PRINT_TASK_ERROR("CIRCLE");
+        PRINT_TASK_ERROR("Could not create the circle drawing task");
     }
     
     if(xTaskCreate(circle1, "flag1", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &flag1Handle) != pdPASS){
-        PRINT_TASK_ERROR("FLAG1");
-    }
-    if(xTaskCreate(circle2, "flag2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &flag2Handle) != pdPASS){
-        PRINT_TASK_ERROR("FLAG2");
+        PRINT_TASK_ERROR("Could not create the first blinking task");
     }
 
+    flag2Handle = xTaskCreateStatic(circle2, "circle2", STACK_SIZE, ( void * ) 1, tskIDLE_PRIORITY, xStack, &xTaskBuffer);
+
+    if(flag2Handle == NULL){
+        PRINT_TASK_ERROR("Could not create the second blinking task");
+    }
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();

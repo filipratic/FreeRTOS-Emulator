@@ -103,7 +103,7 @@
 #define INCLUDE_vTaskSuspend                1
 #define INCLUDE_vTaskDelayUntil             1
 #define INCLUDE_vTaskDelay                  1
-#define INCLUDE_uxTaskGetStackHighWaterMark 0 /* Do not use this option on the PC port. */
+#define INCLUDE_uxTaskGetStackHighWaterMark 1 /* Do not use this option on the PC port. */
 #define INCLUDE_xTaskGetSchedulerState      1
 
 extern void vMainQueueSendPassed(void);
