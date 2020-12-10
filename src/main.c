@@ -711,24 +711,42 @@ static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
 
 
 TaskHandle_t flag1Handle = NULL, flag2Handle = NULL;
-
+bool check1 = false, check2 = false;
 void circle1(void * p){
-    bool check = false;
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 1;
-    const TickType_t xPeriod = 1000/xFrequency/portTICK_PERIOD_MS;
-
-    xLastWakeTime = xTaskGetTickCount();
+    TickType_t xLastTick;
+    const TickType_t freq = 1;
+    TickType_t period;
+    period = 1000/freq/portTICK_PERIOD_MS;
+    xLastTick = xTaskGetTickCount();
+    
     while(1){
-        check = !check;
-        if(check){
-            xTaskNotifyGive(drawCircleHandle);
+        if(xSemaphoreTake(buttons.lock,0) == pdTRUE){
+            check1 = !check1;
+            xSemaphoreGive(buttons.lock);
         }
-        
-        vTaskDelayUntil(&xLastWakeTime, xPeriod/2);
+
+
+        vTaskDelayUntil(&xLastTick, period/2);
     }
 }
 
+void circle2(void * p){
+    TickType_t xLastTick;
+    const TickType_t freq = 2;
+    TickType_t period;
+    period = 1000/freq/portTICK_PERIOD_MS;
+    xLastTick = xTaskGetTickCount();
+    
+    while(1){
+        if(xSemaphoreTake(buttons.lock,0) == pdTRUE){
+            check2 = !check2;
+            xSemaphoreGive(buttons.lock);
+        }
+
+
+        vTaskDelayUntil(&xLastTick, period/2);
+    }
+}
 
 
 void drawCircle(void * pvParameters){
@@ -737,7 +755,8 @@ void drawCircle(void * pvParameters){
             if (xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE) {
                 xSemaphoreTake(ScreenLock, portMAX_DELAY);
                 checkDraw(tumDrawClear(White), __FUNCTION__);
-                checkDraw(tumDrawCircle(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 50, Green), __FUNCTION__);
+                if(check1) checkDraw(tumDrawCircle(SCREEN_WIDTH/4,SCREEN_HEIGHT/2,50,Red), __FUNCTION__);
+                if(check2)  checkDraw(tumDrawCircle(3 * SCREEN_WIDTH/4, SCREEN_HEIGHT/2 , 50, Green), __FUNCTION__);
                 vDrawFPS();
                 xSemaphoreGive(ScreenLock);
                 }
@@ -896,6 +915,12 @@ int main(int argc, char *argv[])
         PRINT_TASK_ERROR("CIRCLE");
     }
     
+    if(xTaskCreate(circle1, "flag1", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &flag1Handle) != pdPASS){
+        PRINT_TASK_ERROR("FLAG1");
+    }
+    if(xTaskCreate(circle2, "flag2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &flag2Handle) != pdPASS){
+        PRINT_TASK_ERROR("FLAG2");
+    }
 
     tumFUtilPrintTaskStateList();
 
