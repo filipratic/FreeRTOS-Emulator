@@ -90,7 +90,10 @@ StackType_t xStack[ STACK_SIZE ];
 static QueueHandle_t StateQueue = NULL;
 static SemaphoreHandle_t DrawSignal = NULL;
 static SemaphoreHandle_t ScreenLock = NULL;
-static SemaphoreHandle_t BoolLock = NULL;
+static SemaphoreHandle_t FlagLock = NULL;
+
+
+
 
 static image_handle_t logo_image = NULL;
 
@@ -98,6 +101,7 @@ typedef struct buttons_buffer {
     unsigned char buttons[SDL_NUM_SCANCODES];
     SemaphoreHandle_t lock;
 } buttons_buffer_t;
+
 
 static buttons_buffer_t buttons = { 0 };
 
@@ -710,8 +714,7 @@ static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
 
 
 TaskHandle_t flag1Handle = NULL, flag2Handle = NULL;
-bool check1 = false, check2 = false;
-
+bool check1 = false, check2 = true;
 
 void circle1(void * p){
     TickType_t xLastTick;
@@ -721,9 +724,9 @@ void circle1(void * p){
     xLastTick = xTaskGetTickCount();
     
     while(1){
-        if(xSemaphoreTake(BoolLock,0) == pdTRUE){
+        if(xSemaphoreTake(FlagLock,0) == pdTRUE){
             check1 = !check1;
-            xSemaphoreGive(BoolLock);
+            xSemaphoreGive(FlagLock);
         }
 
 
@@ -740,9 +743,9 @@ void circle2(void * p){
     configASSERT( ( uint32_t ) pvParameters == 1UL );
     
     while(1){
-        if(xSemaphoreTake(BoolLock,0) == pdTRUE){
+        if(xSemaphoreTake(FlagLock,0) == pdTRUE){
             check2 = !check2;
-            xSemaphoreGive(BoolLock);
+            xSemaphoreGive(FlagLock);
         }
 
         vTaskDelayUntil(&xLastTick, period/2);
@@ -879,9 +882,9 @@ int main(int argc, char *argv[])
         goto err_buttons_lock;
     }
 
-    BoolLock = xSemaphoreCreateMutex();
-    if(!BoolLock){
-        PRINT_ERROR("Failed to lock the bool value");
+    FlagLock = xSemaphoreCreateMutex();
+    if(!FlagLock){
+        PRINT_ERROR("Failed to create the flag lock");
     }
 
     DrawSignal = xSemaphoreCreateBinary(); // Screen buffer locking
