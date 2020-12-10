@@ -9,6 +9,7 @@
 #include "queue.h"
 #include "semphr.h"
 #include "task.h"
+#include "timers.h"
 
 #include "TUM_Ball.h"
 #include "TUM_Draw.h"
@@ -80,6 +81,7 @@ static TaskHandle_t DemoSendTask = NULL;
 static QueueHandle_t StateQueue = NULL;
 static SemaphoreHandle_t DrawSignal = NULL;
 static SemaphoreHandle_t ScreenLock = NULL;
+TimerHandle_t my_Timer = NULL;
 
 static image_handle_t logo_image = NULL;
 
@@ -804,6 +806,10 @@ void notifyTestTask(void * p){
 
 */
 
+void vCallBackFunction(TimerHandle_t xTimer){
+    printf("Hello from the timer\n");
+}
+
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
@@ -905,7 +911,12 @@ int main(int argc, char *argv[])
     }
  
 
-    
+    my_Timer = xTimerCreate("My Timer", pdMS_TO_TICKS(1000), pdTRUE, (void * )0, vCallBackFunction);
+
+    if(xTimerStart(my_Timer, 0) != pdPASS){
+        printf("Didn't create timer\n");
+        return -1;
+    }
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();
