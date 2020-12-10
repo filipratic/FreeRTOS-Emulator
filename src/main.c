@@ -675,66 +675,61 @@ TaskHandle_t increment = NULL;
 TaskHandle_t susres = NULL;
 
 
-// Task used for incrementing the variable.
 
 void increaseVariable(void * pvParameters){
     int a = 0;
-    TickType_t delay = 100;
+    TickType_t delay = 1000;
     while(1){
-        a++;
-        printf("%d\n", a);
+        xTaskNotifyGive(susres);
         vTaskDelay(delay/portTICK_PERIOD_MS);
+        }
     }
-}
+
 
 
 
 //Task that resumes/suspends increaseVariable()
 //pressed_s and pressed_r are used for debouncing. if it wasn't pressed, it can be pressed.
 void taskSuspendResume(void * pvParameters){  
-    bool pressed_i = false, susFlag = false;  //susFlag keeps track of the current state of the increment function. False == not suspended
-    while(1){                                                      //True == suspended
-        xGetButtonInput();
-              //in the first iteration, susFlag needs to be false(since the task isn't suspended).
-            if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
-                if (buttons.buttons[SDL_SCANCODE_I]) { 
-                    if(!pressed_i){ 
-                        pressed_i = true;
-                        if(!susFlag){                         
-                            printf("suspending\n");                
-                            susFlag = true;                             //flag is true, since the task is now in a suspended state
-                            vTaskSuspend(increment);
-                        }else{
-                            printf("resuming\n");
-                            susFlag = false;                    //mark the flag as false, since it gets resumed and not suspended anymore.
-                            vTaskResume(increment);
-                        }    
+    bool pressed_i = false, susFlag = false;
+    int counter = 0;
+    char var[1];
+    while(1){
+        if(ulTaskNotifyTake(pdTRUE,0) == 1) counter++;
+        sprintf(var, "%d", counter);
+        if(DrawSignal){
+            if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
+                xGetButtonInput();
+                checkDraw(tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black), __FUNCTION__);
+                if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
+                    if (buttons.buttons[SDL_SCANCODE_I]) { 
+                        if(!pressed_i){ 
+                            pressed_i = true;
+                            if(!susFlag){                         
+                                printf("suspending\n");                
+                                susFlag = true;                             //flag is true, since the task is now in a suspended state
+                                vTaskSuspend(increment);
+                            }else{
+                                printf("resuming\n");
+                                susFlag = false;                    //mark the flag as false, since it gets resumed and not suspended anymore.
+                                vTaskResume(increment);
+                            }    
+                        }
+                    } else {
+                        pressed_i = false;
                     }
-                } else {
-                    pressed_i = false;
-                }
-                xSemaphoreGive(buttons.lock);
-            }      
-            tumFUtilPrintTaskStateList();
+                    xSemaphoreGive(buttons.lock);
+                }      
+            }
+        }                                                      //True == suspended
+        
  }
 }
-    
-TaskHandle_t testHandle;
-void test(void *p){
-    int a = 0;
-    while(1){
-        a++;
-        printf("%d\n", a);
-        vTaskDelay(100);
-    }
-}
+     
 
 
-void vIncrease(){
-    xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, 9, &increment);
-    xTaskCreate(taskSuspendResume, "suspend", mainGENERIC_STACK_SIZE, NULL, 9, &susres);
-    xTaskCreate(test, "test", mainGENERIC_STACK_SIZE, NULL, 9, &testHandle);
-}
+
+
 
 
 
@@ -811,7 +806,7 @@ int main(int argc, char *argv[])
         goto err_state_queue;
     }
 
-/*
+
     if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
                     mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
                     BufferSwap) != pdPASS) {
@@ -819,22 +814,24 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-   
-*/ 
-    
+    if(xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment) != pdPASS){
+        PRINT_TASK_ERROR("Increment task");
+    }
 
-    vIncrease();
+    if(xTaskCreate(taskSuspendResume, "suspendResume", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres) != pdPASS){
+        PRINT_TASK_ERROR("SuspendResume");
+    }
+   
 
     tumFUtilPrintTaskStateList();
 
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
-/*
+
 err_bufferswap:
     vTaskDelete(StateMachine);
 
-    */
 err_state_queue:
     vSemaphoreDelete(ScreenLock);
 err_screen_lock:
