@@ -674,7 +674,7 @@ void vDemoTask2(void *pvParameters)
 
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
-unsigned short a = 0, b = 0, c = 0, d = 0, mouse_left = 0, mouse_right = 0, mouse_middle = 0;
+
 
 
 void vDemoTask(void *pvParameters)
@@ -688,6 +688,9 @@ void vDemoTask(void *pvParameters)
     trianglecoords[1].y = 240;
     trianglecoords[2].x = SCREEN_WIDTH/2;
     trianglecoords[2].y = 180;
+    
+    
+    unsigned short a = 0, b = 0, c = 0, d = 0, mouse_left = 0, mouse_right = 0, mouse_middle = 0;
 
     //coordinates of the circle
     signed short circle_x = SCREEN_WIDTH/2 + 100;
