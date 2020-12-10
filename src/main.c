@@ -696,11 +696,11 @@ void taskSuspendResume(void * pvParameters){
     while(1){
         sprintf(var, "Increment value : %d", counter);
         if(ulTaskNotifyTake(pdTRUE,0) == 1) counter++;
-        printf("%s\n", var);
         if(DrawSignal){
             if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
                 xGetButtonInput();
                 xSemaphoreTake(ScreenLock, portMAX_DELAY);
+                checkDraw(tumDrawClear(White), __FUNCTION__);
                 checkDraw(tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black), __FUNCTION__);
                 if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
                     if (buttons.buttons[SDL_SCANCODE_I]) { 
