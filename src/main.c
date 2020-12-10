@@ -677,13 +677,12 @@ TaskHandle_t susres = NULL;
 
 
 void increaseVariable(void * pvParameters){
-    int a = 0;
     TickType_t delay = 1000;
     while(1){
         xTaskNotifyGive(susres);
         vTaskDelay(delay/portTICK_PERIOD_MS);
         }
-    }
+}
 
 
 
@@ -693,14 +692,15 @@ void increaseVariable(void * pvParameters){
 void taskSuspendResume(void * pvParameters){  
     bool pressed_i = false, susFlag = false;
     int counter = 0;
-    char var[1];
+    char var[100];
     while(1){
+        sprintf(var, "Increment value : %d", counter);
         if(ulTaskNotifyTake(pdTRUE,0) == 1) counter++;
-        sprintf(var, "%d", counter);
+        printf("%s\n", var);
         if(DrawSignal){
             if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
                 xGetButtonInput();
-                checkDraw(tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black), __FUNCTION__);
+                tumDrawText(var, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, Black);
                 if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) { //standard Mutex lock for pressing the button.
                     if (buttons.buttons[SDL_SCANCODE_I]) { 
                         if(!pressed_i){ 
@@ -719,7 +719,8 @@ void taskSuspendResume(void * pvParameters){
                         pressed_i = false;
                     }
                     xSemaphoreGive(buttons.lock);
-                }      
+                }  
+                vDrawFPS();    
             }
         }                                                      //True == suspended
         
