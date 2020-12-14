@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <SDL2/SDL_scancode.h>
 
@@ -668,6 +669,126 @@ void vDemoTask2(void *pvParameters)
     }
 }
 
+TaskHandle_t task1 = NULL, task2 = NULL, task3 = NULL, task4 = NULL, printElementsHandle = NULL;
+SemaphoreHandle_t wakeThree = NULL, wakeFour = NULL, LockBool = NULL;
+QueueHandle_t printQ = NULL;
+bool flag = false;
+
+
+
+void taskOne(void * p){
+    char toSend = '1';
+    TickType_t LastWakeTime;
+    LastWakeTime = xTaskGetTickCount();
+    while(1){
+        
+        xQueueSend(printQ, &toSend, 0);        
+        vTaskResume(task2);
+
+        if(xSemaphoreTake(wakeThree, 0) == pdTRUE){
+            vTaskResume(task3);
+        }
+
+        
+        vTaskDelayUntil(&LastWakeTime,(TickType_t )1);
+        LastWakeTime = xTaskGetTickCount();
+    }
+}
+
+void taskTwo(void * p){
+    TickType_t LastWakeTime = xTaskGetTickCount();
+    char toSend = '2';
+    vTaskSuspend(NULL);
+    while(1){
+        
+       
+        xQueueSend(printQ, &toSend, 0);
+        xSemaphoreGive(wakeThree);
+        vTaskDelayUntil(&LastWakeTime,(TickType_t )2);
+        
+        LastWakeTime = xTaskGetTickCount();
+        vTaskSuspend(NULL);
+    }
+}
+
+void taskThree(void * p){
+    char toSend = '3';
+    vTaskSuspend(NULL);
+    while(1){
+        
+        xQueueSend(printQ, &toSend, 0);
+        vTaskResume(task4);
+        vTaskSuspend(NULL);
+    }
+}
+
+
+
+void taskFour(void * p){
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    char toSend = '4';
+    vTaskSuspend(NULL);
+    while(1){
+            
+        xQueueSend(printQ, &toSend, 0);
+        vTaskDelayUntil(&xLastWakeTime, 4);
+        vTaskSuspend(NULL);
+    }
+    
+
+}
+
+void printElements(void * p){
+    char element[4];
+    TickType_t xLastTick = xTaskGetTickCount();
+    int cnt = 0;
+    while(1){
+        for(int i = 0; i < 4; i++){
+            xQueueReceive(printQ, &element[i], 0);
+        }
+        printf("%s\n", element);
+        cnt++;
+        vTaskDelayUntil(&xLastTick,(TickType_t)1);
+        if(cnt == 15) vTaskSuspend(NULL);
+        
+    }
+    
+}
+
+/*
+void taskThree(void * p){
+    char toSend = '3';
+    int cnt = 0;
+    while(1){
+        cnt++;
+        xQueueSend(printQ, &toSend, 0);
+        if(cnt > 0) vTaskSuspend(NULL);
+    }
+}
+
+
+void taskFour(void * p){
+    char toSend = '4';
+    int cnt = 0;
+    while(1){        
+        cnt++;   
+        xQueueSend(printQ, &toSend, 0);
+        if(cnt > 0) vTaskSuspend(NULL);
+    }
+    
+
+}
+*/
+
+
+
+
+    
+    
+
+
+
+
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
 int main(int argc, char *argv[])
@@ -729,10 +850,20 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Failed to create draw signal");
         goto err_draw_signal;
     }
+    wakeThree = xSemaphoreCreateBinary();
+    if(!wakeThree){
+        PRINT_ERROR("Failed to create bin semaphore");
+
+    }
     ScreenLock = xSemaphoreCreateMutex();
     if (!ScreenLock) {
         PRINT_ERROR("Failed to create screen lock");
         goto err_screen_lock;
+    }
+
+    LockBool = xSemaphoreCreateMutex();
+    if(!LockBool){
+        PRINT_ERROR("Failed to create bool lock");
     }
 
     // Message sending
@@ -741,6 +872,13 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Could not open state queue");
         goto err_state_queue;
     }
+
+    printQ = xQueueCreate(4, sizeof( int ));
+    if(!printQ){
+        PRINT_ERROR("Could not open queue for printing task 4");
+    }
+
+
 
     if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
                     mainGENERIC_STACK_SIZE * 2, NULL,
@@ -755,32 +893,28 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-    /** Demo Tasks */
-    if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask1");
-        goto err_demotask1;
+    if(xTaskCreate(taskOne, "task1", mainGENERIC_STACK_SIZE, NULL, 1, &task1) != pdTRUE){
+        PRINT_TASK_ERROR("task1");
     }
-    if (xTaskCreate(vDemoTask2, "DemoTask2", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask2) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask2");
-        goto err_demotask2;
+    if(xTaskCreate(taskTwo, "task2", mainGENERIC_STACK_SIZE, NULL, 2, &task2) != pdTRUE){
+        PRINT_TASK_ERROR("task2");
+    }
+    
+    if(xTaskCreate(taskThree, "task3", mainGENERIC_STACK_SIZE, NULL, 3, &task3) != pdTRUE){
+        PRINT_TASK_ERROR("task3");
+    }
+    
+    if(xTaskCreate(taskFour, "task4", mainGENERIC_STACK_SIZE, NULL, 4, &task4) != pdTRUE){
+        PRINT_TASK_ERROR("task4");
     }
 
-    /** SOCKETS */
-    xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &UDPDemoTask);
-    xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
-                configMAX_PRIORITIES - 1, &TCPDemoTask);
+    if(xTaskCreate(printElements, "printElements", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &printElementsHandle) != pdTRUE){
+        PRINT_TASK_ERROR("Print Elements Handle");
+    }
 
-    /** POSIX MESSAGE QUEUES */
-    xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &MQDemoTask);
-    xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &DemoSendTask);
 
-    vTaskSuspend(DemoTask1);
-    vTaskSuspend(DemoTask2);
+
+
 
     tumFUtilPrintTaskStateList();
 
