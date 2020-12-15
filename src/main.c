@@ -672,7 +672,6 @@ void vDemoTask2(void *pvParameters)
 TaskHandle_t task1 = NULL, task2 = NULL, task3 = NULL, task4 = NULL, printElementsHandle = NULL;
 SemaphoreHandle_t wakeThree = NULL, wakeFour = NULL, LockBool = NULL;
 QueueHandle_t printQ = NULL;
-bool flag = false;
 
 
 
@@ -740,45 +739,56 @@ void taskFour(void * p){
 
 void printElements(void * p){
     char element[4];
+    char output[15][25];
+    signed short text_x = SCREEN_WIDTH/2 - 150;
+    signed short text_y = SCREEN_HEIGHT/2 - 150;
+    
     TickType_t xLastTick = xTaskGetTickCount();
     int cnt = 0;
     while(1){
         for(int i = 0; i < 4; i++){
             xQueueReceive(printQ, &element[i], 0);
         }
-        printf("%s\n", element);
-        cnt++;
+        if(cnt != 15){
+            sprintf(output[cnt], "Tick number: %d : %s", cnt + 1, element);
+            printf("%s\n", output[cnt]);
+            cnt++;
+
+        }else {
+            if(DrawSignal){
+                if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
+                    xSemaphoreTake(ScreenLock, portMAX_DELAY);
+
+                    checkDraw(tumDrawClear(White), __FUNCTION__);
+                    checkDraw(tumDrawText(output[0], text_x, text_y,  Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[1], text_x, text_y + 20, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[2], text_x, text_y + 40, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[3], text_x, text_y + 60, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[4], text_x, text_y + 80, Black), __FUNCTION__);   
+                    checkDraw(tumDrawText(output[5], text_x, text_y + 100, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[6], text_x, text_y + 120, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[7], text_x, text_y + 140, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[8], text_x, text_y + 160, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[9], text_x, text_y + 180, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[10], text_x, text_y + 200, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[11], text_x, text_y + 220, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[12], text_x, text_y + 240, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[13], text_x, text_y + 260, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[14], text_x, text_y + 280, Black), __FUNCTION__);
+                    vDrawFPS();
+                    xSemaphoreGive(ScreenLock);
+                            
+                }
+            }
+
+        }
         vTaskDelayUntil(&xLastTick,(TickType_t)1);
-        if(cnt == 15) vTaskSuspend(NULL);
+        
         
     }
     
 }
 
-/*
-void taskThree(void * p){
-    char toSend = '3';
-    int cnt = 0;
-    while(1){
-        cnt++;
-        xQueueSend(printQ, &toSend, 0);
-        if(cnt > 0) vTaskSuspend(NULL);
-    }
-}
-
-
-void taskFour(void * p){
-    char toSend = '4';
-    int cnt = 0;
-    while(1){        
-        cnt++;   
-        xQueueSend(printQ, &toSend, 0);
-        if(cnt > 0) vTaskSuspend(NULL);
-    }
-    
-
-}
-*/
 
 
 
