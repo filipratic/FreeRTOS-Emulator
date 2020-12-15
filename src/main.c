@@ -668,6 +668,144 @@ void vDemoTask2(void *pvParameters)
     }
 }
 
+
+
+QueueHandle_t printQ = NULL;
+TaskHandle_t print1Handle = NULL, print2Handle = NULL, print3Handle = NULL, print4Handle = NULL, printElementsHandle = NULL; 
+SemaphoreHandle_t wakeThree = NULL; 
+char output[15][25];
+
+
+void taskOne(void * p){
+    char toSend = '1';
+    int cnt = 1;
+    TickType_t LastWakeTime;
+    LastWakeTime = xTaskGetTickCount();
+    while(1){
+        if(cnt % 4 == 0) vTaskResume(print4Handle);
+        if(cnt % 2 == 0) vTaskResume(print2Handle);
+        if(xSemaphoreTake(wakeThree, 0) == pdTRUE){
+            vTaskResume(print3Handle);
+        }
+        xQueueSend(printQ, &toSend, 0);
+        cnt++;
+        if(cnt == 16) {
+            vTaskSuspend(NULL);
+        }
+        vTaskDelayUntil(&LastWakeTime,(TickType_t )1);
+        LastWakeTime = xTaskGetTickCount();
+        
+    }
+}
+
+void taskTwo(void * p){
+    char toSend = '2';
+    vTaskSuspend(NULL);
+    while(1){
+        
+        xQueueSend(printQ, &toSend, 0);
+        xSemaphoreGive(wakeThree);
+        
+        
+        vTaskSuspend(NULL);
+        
+    }
+}
+
+void taskThree(void * p){
+    char toSend = '3';
+    vTaskSuspend(NULL);
+    while(1){
+        xQueueSend(printQ, &toSend, 0);
+        vTaskSuspend(NULL);
+       
+    }
+}
+
+
+
+void taskFour(void * p){
+    
+    char toSend = '4';
+    vTaskSuspend(NULL);
+    while(1){
+        xQueueSend(printQ, &toSend, 0);
+        vTaskSuspend(NULL);
+         
+    }
+    
+
+}
+
+
+
+void printElements(void * p){
+    char element[4];
+    
+    signed short text_x = SCREEN_WIDTH/2 - 150;
+    signed short text_y = SCREEN_HEIGHT/2 - 150;
+    
+    TickType_t xLastTick = 1;
+    int cnt = 0;
+    while(1){
+        for(int i = 0; i < 4; i++){
+            xQueueReceive(printQ, &element[i], 0);
+        }
+        if(cnt != 15){
+            sprintf(output[cnt], "Tick number: %d : %s", cnt + 1, element);
+            printf("%s\n", output[cnt]);
+            cnt++;
+
+        }else {
+            if(DrawSignal){
+                if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
+                    xSemaphoreTake(ScreenLock, portMAX_DELAY);
+
+                    checkDraw(tumDrawClear(White), __FUNCTION__);
+                    checkDraw(tumDrawText(output[0], text_x, text_y,  Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[1], text_x, text_y + 20, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[2], text_x, text_y + 40, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[3], text_x, text_y + 60, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[4], text_x, text_y + 80, Black), __FUNCTION__);   
+                    checkDraw(tumDrawText(output[5], text_x, text_y + 100, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[6], text_x, text_y + 120, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[7], text_x, text_y + 140, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[8], text_x, text_y + 160, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[9], text_x, text_y + 180, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[10], text_x, text_y + 200, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[11], text_x, text_y + 220, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[12], text_x, text_y + 240, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[13], text_x, text_y + 260, Black), __FUNCTION__);
+                    checkDraw(tumDrawText(output[14], text_x, text_y + 280, Black), __FUNCTION__);
+                    vDrawFPS();
+                    
+                    
+                    
+                    xSemaphoreGive(ScreenLock);
+                            
+                }
+            }
+
+        }
+        vTaskDelayUntil(&xLastTick,(TickType_t)1);
+        
+        
+    }
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 #define PRINT_TASK_ERROR(task) PRINT_ERROR("Failed to print task ##task");
 
 int main(int argc, char *argv[])
@@ -729,6 +867,10 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Failed to create draw signal");
         goto err_draw_signal;
     }
+    wakeThree = xSemaphoreCreateBinary();
+    if(!wakeThree){
+        PRINT_ERROR("Failed to create semaphore");
+    }
     ScreenLock = xSemaphoreCreateMutex();
     if (!ScreenLock) {
         PRINT_ERROR("Failed to create screen lock");
@@ -741,6 +883,8 @@ int main(int argc, char *argv[])
         PRINT_ERROR("Could not open state queue");
         goto err_state_queue;
     }
+
+    printQ = xQueueCreate(4, sizeof(char));
 
     if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
                     mainGENERIC_STACK_SIZE * 2, NULL,
@@ -755,32 +899,30 @@ int main(int argc, char *argv[])
         goto err_bufferswap;
     }
 
-    /** Demo Tasks */
-    if (xTaskCreate(vDemoTask1, "DemoTask1", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask1) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask1");
-        goto err_demotask1;
+    
+    if(xTaskCreate(taskOne, "task1", mainGENERIC_STACK_SIZE, NULL, 1, &print1Handle) != pdTRUE){
+        PRINT_TASK_ERROR("Could not start task for printing 1");
     }
-    if (xTaskCreate(vDemoTask2, "DemoTask2", mainGENERIC_STACK_SIZE * 2,
-                    NULL, mainGENERIC_PRIORITY, &DemoTask2) != pdPASS) {
-        PRINT_TASK_ERROR("DemoTask2");
-        goto err_demotask2;
+    
+    if(xTaskCreate(taskTwo, "task2", mainGENERIC_STACK_SIZE, NULL, 2, &print2Handle) != pdTRUE){
+        PRINT_TASK_ERROR("Could not start task for printing 2");
+    }
+    
+    if(xTaskCreate(taskThree, "task3", mainGENERIC_STACK_SIZE, NULL, 3, &print3Handle) != pdTRUE){
+        PRINT_TASK_ERROR("Could not start task for printing 3");
+    }
+    
+    if(xTaskCreate(taskFour, "task4", mainGENERIC_STACK_SIZE, NULL, 4, &print4Handle) != pdTRUE){
+        PRINT_TASK_ERROR("Could not start task for printing 4");
     }
 
-    /** SOCKETS */
-    xTaskCreate(vUDPDemoTask, "UDPTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &UDPDemoTask);
-    xTaskCreate(vTCPDemoTask, "TCPTask", mainGENERIC_STACK_SIZE, NULL,
-                configMAX_PRIORITIES - 1, &TCPDemoTask);
+    if(xTaskCreate(printElements, "printElements", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &printElementsHandle) != pdTRUE){
+        PRINT_TASK_ERROR("Could not start task for printing elements in the 4th exercise");
+    }
+  
+   
 
-    /** POSIX MESSAGE QUEUES */
-    xTaskCreate(vMQDemoTask, "MQTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &MQDemoTask);
-    xTaskCreate(vDemoSendTask, "SendTask", mainGENERIC_STACK_SIZE * 2, NULL,
-                configMAX_PRIORITIES - 1, &DemoSendTask);
-
-    vTaskSuspend(DemoTask1);
-    vTaskSuspend(DemoTask2);
+    
 
     tumFUtilPrintTaskStateList();
 
