@@ -1053,7 +1053,6 @@ void printElements(void * p){
     
     signed short text_x = SCREEN_WIDTH/2 - 150;
     signed short text_y = SCREEN_HEIGHT/2 - 150;
-    signed short delta = 0;
     TickType_t xLastTick = 1;
     while(1){
         if(DrawSignal){
