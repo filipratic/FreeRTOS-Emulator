@@ -44,19 +44,6 @@
 #define STATE_DEBOUNCE_DELAY 300
 
 #define KEYCODE(CHAR) SDL_SCANCODE_##CHAR
-#define CAVE_SIZE_X SCREEN_WIDTH / 2
-#define CAVE_SIZE_Y SCREEN_HEIGHT / 2
-#define CAVE_X CAVE_SIZE_X / 2
-#define CAVE_Y CAVE_SIZE_Y / 2
-#define CAVE_THICKNESS 25
-#define LOGO_FILENAME "freertos.jpg"
-#define UDP_BUFFER_SIZE 2000
-#define UDP_TEST_PORT_1 1234
-#define UDP_TEST_PORT_2 4321
-#define MSG_QUEUE_BUFFER_SIZE 1000
-#define MSG_QUEUE_MAX_MSG_COUNT 10
-#define TCP_BUFFER_SIZE 2000
-#define TCP_TEST_PORT 2222
 
 #ifdef TRACE_FUNCTIONS
 #include "tracer.h"
@@ -93,12 +80,12 @@ TimerHandle_t myTimer = NULL;
 
 SemaphoreHandle_t task2Sem = NULL;
 
-bool start_a = false, start_d = false;
+bool start_f = false, start_r = false;
 
 // 3.2.4
 
 TaskHandle_t increment = NULL, susres = NULL;
-int a = 0, d = 0;
+int f = 0, r = 0;
 
 
 // 4th exercise
@@ -135,7 +122,7 @@ static QueueHandle_t StateQueue = NULL;
 static SemaphoreHandle_t DrawSignal = NULL;
 static SemaphoreHandle_t ScreenLock = NULL;
 
-static image_handle_t logo_image = NULL;
+
 
 typedef struct buttons_buffer {
     unsigned char buttons[SDL_NUM_SCANCODES];
@@ -218,9 +205,11 @@ initial_state:
         if (state_changed) {
             switch (current_state) {
                 case STATE_ONE:
-                    if (draw3Handle && printElementsHandle) {
+                    if (draw3Handle && printElementsHandle && task1Handle && task2Handle) {
                         vTaskSuspend(draw3Handle);
                         vTaskSuspend(printElementsHandle);
+                        vTaskSuspend(task1Handle);
+                        vTaskSuspend(task2Handle);
                     }
                     
                     if (exercise2Handle) {
@@ -232,8 +221,10 @@ initial_state:
                         vTaskSuspend(exercise2Handle);
                         vTaskSuspend(printElementsHandle);
                     }
-                    if (draw3Handle) {
+                    if (draw3Handle && task1Handle && task2Handle) {
                         vTaskResume(draw3Handle);
+                        vTaskResume(task1Handle);
+                        vTaskResume(task2Handle);
                     }
                     break;
                 case STATE_THREE:
@@ -745,8 +736,8 @@ void circle2(void * p){
 
 void vTimerCallback(TimerHandle_t xTimer){
     if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
-        a = 0;
-        d = 0;
+        f = 0;
+        r = 0;
         xSemaphoreGive(buttons.lock);
     }
 }
@@ -755,7 +746,7 @@ void vTimerCallback(TimerHandle_t xTimer){
 /*
 ****exercise 3.2.3 ***** 
 
-taskNotif sends a notification to task1 every time A gets pressed. Task1 then sets the start_a flag to true and 
+taskNotif sends a notification to task1 every time F gets pressed. Task1 then sets the start_a flag to true and 
  the drawing task starts drawing the text which shows how many times the button got pressed, since the counters should be sleeping before the first button press.
  Task2 is basically the same principle, with the difference that a binary semaphore is used instead of a task notification. 
  We also see that i implemented the same debounce logic for the buttons like in the second exercise. 
@@ -764,11 +755,12 @@ void task1(void * p){
     while(1){
         if(ulTaskNotifyTake(pdTRUE, 0) == pdTRUE){
             if(xSemaphoreTake(LockBool, 0) == pdTRUE){
-                start_a = true;
+                start_f = true;
                 xSemaphoreGive(LockBool);
             }
             if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
-                a++;
+                f++;
+                xSemaphoreGive(buttons.lock);
             }
 
         } 
@@ -784,8 +776,14 @@ void task2(void * p){
     while(1){
         
         if(xSemaphoreTake(task2Sem, 0) == pdTRUE){
-            start_d = true;
-            d++;
+            if(xSemaphoreTake(LockBool, 0) == pdTRUE){
+                start_r = true;
+                xSemaphoreGive(LockBool);
+            }
+            if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
+                r++;
+                xSemaphoreGive(buttons.lock);
+            }
             
         }   
         vTaskDelay(20/portTICK_PERIOD_MS);
@@ -794,27 +792,27 @@ void task2(void * p){
 
 
 void taskNotif(void * p){
-    bool pressed_a = false, pressed_d = false;
+    bool pressed_f = false, pressed_e = false;
 
     while(1){
         xGetButtonInput();        
         if (xSemaphoreTake(buttons.lock, 0) == pdTRUE) {
-            if (buttons.buttons[SDL_SCANCODE_A]) {
-                if(!pressed_a){
-                    pressed_a = true;
+            if (buttons.buttons[SDL_SCANCODE_F]) {
+                if(!pressed_f){
+                    pressed_f = true;
                     xTaskNotifyGive(task1Handle);
                 }
                 } else {
-                    pressed_a = false;
+                    pressed_f = false;
                 }
             xSemaphoreGive(buttons.lock);
-            if (buttons.buttons[SDL_SCANCODE_D]) {
-                if(!pressed_d){
-                    pressed_d = true;
+            if (buttons.buttons[SDL_SCANCODE_R]) {
+                if(!pressed_e){
+                    pressed_e = true;
                     xSemaphoreGive(task2Sem);
                 }
                 } else {
-                    pressed_d = false;
+                    pressed_e = false;
                 }
             }
         vTaskDelay(20/portTICK_PERIOD_MS);
@@ -923,12 +921,12 @@ void drawExercise3(void * p){
                 checkDraw(tumDrawClear(White), __FUNCTION__);
                 
                 if(xSemaphoreTake(LockBool, 0) == pdTRUE){
-                    if(start_a){
-                        sprintf(task1pressed, "A was pressed %d times", a);
+                    if(start_f){
+                        sprintf(task1pressed, "F was pressed %d times", f);
                         checkDraw(tumDrawText(task1pressed, SCREEN_WIDTH/2 - 70, 10, Black), __FUNCTION__);
                         }
-                    if(start_d){
-                        sprintf(task2pressed, "D was pressed %d times", d);
+                    if(start_r){
+                        sprintf(task2pressed, "R was pressed %d times", r);
                         checkDraw(tumDrawText(task2pressed, SCREEN_WIDTH/2 - 70, 30, Black), __FUNCTION__);
                     }
                 
@@ -956,7 +954,8 @@ void drawExercise3(void * p){
 ***********exercise 4**************
 
 In my implementation, the task used for printing 1 basically controls every other task, which did seem intuitive since it gets called every tick. The other tasks dont have any delay,
-they get called with respect to the first task. I set up a variable cnt(counter) which keeps track of the ticks and gets incremented every function call (every tick because of the delay)
+they get called with respect to the first task. I set up a variable cnt(counter) which keeps track of the ticks and gets incremented every function call (every tick because of the delay).
+That way i can call the 4th task every 4th tick and the 2nd task every 2nd tick.
 All tasks are suspended at the beginning and get suspended at the end of their respective calls, with taskOne being the only task to let them print. Basically task1 is their daddy. 
 
 We also have two global variables, k and output. K is the variable that keeps track of the column at which the values should be added and output is, you guessed it, the output of the 
@@ -1147,12 +1146,10 @@ int main(int argc, char *argv[])
         goto err_init_safe_print;
     }
 
-    logo_image = tumDrawLoadImage(LOGO_FILENAME);
 
     atexit(aIODeinit);
 
-    //Load a second font for fun
-    tumFontLoadFont(FPS_FONT, DEFAULT_FONT_SIZE);
+    
 
     buttons.lock = xSemaphoreCreateMutex(); // Locking mechanism
     if (!buttons.lock) {
@@ -1167,12 +1164,12 @@ int main(int argc, char *argv[])
     }
     wakeThree = xSemaphoreCreateBinary();
     if(!wakeThree){
-        PRINT_ERROR("Failed to create bin semaphore");
+        PRINT_ERROR("Failed to create binary semaphore for waking the third task in exercise 4");
 
     }
     task2Sem = xSemaphoreCreateBinary();
     if(!task2Sem){
-        PRINT_ERROR("Failed to create bin semaphore");
+        PRINT_ERROR("Failed to create bin semaphore used for notifying the second task in exercise 3.2.3");
     }
     ScreenLock = xSemaphoreCreateMutex();
     if (!ScreenLock) {
@@ -1183,18 +1180,21 @@ int main(int argc, char *argv[])
     LockBool = xSemaphoreCreateMutex();
     if(!LockBool){
         PRINT_ERROR("Failed to create bool lock");
+        goto err_bool_lock;
     }
 
     LockIndex = xSemaphoreCreateMutex();
     if(!LockIndex){
         PRINT_ERROR("Failed to create index lock");
+        goto err_index_lock;
     }
     LockOutput = xSemaphoreCreateMutex();
     if(!LockOutput){
         PRINT_ERROR("Failed to create output lock");
+        goto err_output_lock;
     }
 
-    // Message sending
+
     StateQueue = xQueueCreate(STATE_QUEUE_LENGTH, sizeof(unsigned char));
     if (!StateQueue) {
         PRINT_ERROR("Could not open state queue");
@@ -1217,63 +1217,84 @@ int main(int argc, char *argv[])
 
     if(xTaskCreate(taskOne, "task1", mainGENERIC_STACK_SIZE, NULL, 1, &print1Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for printing 1");
+        goto err_taskOne;
     }
     
     if(xTaskCreate(taskTwo, "task2", mainGENERIC_STACK_SIZE, NULL, 2, &print2Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for printing 2");
+        goto err_taskTwo;
     }
     
     if(xTaskCreate(taskThree, "task3", mainGENERIC_STACK_SIZE, NULL, 3, &print3Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for printing 3");
+        goto err_taskThree;
     }
     
     if(xTaskCreate(taskFour, "task4", mainGENERIC_STACK_SIZE, NULL, 4, &print4Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for printing 4");
+        goto err_taskFour;
     }
 
     if(xTaskCreate(printElements, "printElements", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &printElementsHandle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for printing elements in the 4th exercise");
+        goto err_printElements;
     }
 
 
     if(xTaskCreate(exercise2Task, "exercise2", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &exercise2Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for drawing in the 3rd exercise");
+        goto err_exercise2Task;
     }
 
 
     if(xTaskCreate(drawExercise3, "draw3rdExercise", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &draw3Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for drawing in the 3rd exercise");
+        goto err_draw3Exercise;
     }
 
-    if(xTaskCreate(circle1, "Circle1", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &flag1Handle) != pdTRUE){
+    if(xTaskCreate(circle1, "Circle1", mainGENERIC_STACK_SIZE, NULL, 1, &flag1Handle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task for sending flag for circles in 3.2.2");
+        goto err_circle1;
     }
 
-    flag2Handle = xTaskCreateStatic(circle2,"Circle2",STACK_SIZE,( void * ) 1, tskIDLE_PRIORITY, xStack, &xTaskBuffer);
+    flag2Handle = xTaskCreateStatic(circle2,"Circle2",STACK_SIZE,( void * ) 1, 2, xStack, &xTaskBuffer);
+    if(flag2Handle == NULL){
+        PRINT_TASK_ERROR("Could not start task for sending flag for circles in 3.2.2");
+        goto err_circle2;
+    }
 
     if(xTaskCreate(task1, "task1 3.2.3", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task1Handle) != pdTRUE){
-        PRINT_TASK_ERROR("Could not start task in 3.2.3");  
+        PRINT_TASK_ERROR("Could not start task1 in 3.2.3");
+        goto err_task1e323;  
+
     }
-    if(xTaskCreate(task2, "task2 3.2.3", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &task2Handle) != pdTRUE){
-        PRINT_TASK_ERROR("Could not start task in 3.2.3");
+    if(xTaskCreate(task2, "task2 3.2.3", mainGENERIC_STACK_SIZE, NULL, 1, &task2Handle) != pdTRUE){
+        PRINT_TASK_ERROR("Could not start task2 in 3.2.3");
+        goto err_task2e323;
     }
     if(xTaskCreate(taskNotif, "taskNotif", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &taskNotifHandle) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task in 3.2.3");
+        goto err_taskNotif;
     }
     myTimer = xTimerCreate("My timer", pdMS_TO_TICKS(15000), pdTRUE, (void * ) 0, vTimerCallback);
     if(xTimerStart(myTimer, 0) == pdFAIL){
-        printf("Couldnt create timer");
+        printf("Could not create timer");
+        goto err_timer;
     }
 
     if(xTaskCreate(taskSuspendResume, "taskSusRes", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &susres) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task in 3.2.3");
+        goto err_susres;
     }
 
-    if(xTaskCreate(increaseVariable, "taskSusRes", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment) != pdTRUE){
+    if(xTaskCreate(increaseVariable, "increment", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &increment) != pdTRUE){
         PRINT_TASK_ERROR("Could not start task in 3.2.3");
+        goto err_increment;
     }
     
-    
+    vTaskSuspend(exercise2Handle);
+    vTaskSuspend(draw3Handle);
+    vTaskSuspend(printElementsHandle);    
 
 
 
@@ -1282,8 +1303,42 @@ int main(int argc, char *argv[])
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
-
-
+err_taskOne:
+    vTaskDelete(print1Handle);
+err_taskTwo:
+    vTaskDelete(print2Handle);
+err_taskThree:
+    vTaskDelete(print3Handle);
+err_taskFour:
+    vTaskDelete(print4Handle);
+err_printElements:
+    vTaskDelete(printElementsHandle);
+err_exercise2Task:
+    vTaskDelete(exercise2Handle);
+err_draw3Exercise:
+    vTaskDelete(draw3Handle);
+err_circle1:
+    vTaskDelete(flag1Handle);
+err_circle2:
+    vTaskDelete(flag2Handle);
+err_task1e323:
+    vTaskDelete(task1Handle);
+err_task2e323:
+    vTaskDelete(task2Handle);
+err_taskNotif:
+    vTaskDelete(taskNotifHandle);
+err_timer:
+    xTimerDelete(myTimer, 0);
+err_susres:
+    vTaskDelete(susres);
+err_increment:
+    vTaskDelete(increment);
+err_bool_lock:
+    vSemaphoreDelete(LockBool);
+err_output_lock:
+    vSemaphoreDelete(LockOutput);
+err_index_lock:
+    vSemaphoreDelete(LockIndex);
 err_bufferswap:
     vTaskDelete(StateMachine);
 err_statemachine:
