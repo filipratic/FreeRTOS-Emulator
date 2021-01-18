@@ -15,7 +15,7 @@
 #include "AsyncIO.h"
 
 #include "main.h"
-#include "pong.h"
+#include "tetris.h"
 
 #define STATE_QUEUE_LENGTH 1
 
@@ -141,6 +141,7 @@ void changeState(volatile unsigned char *state, unsigned char forwards)
 /*
  * Example basic state machine with sequential states
  */
+/*
 void basicSequentialStateMachine(void *pvParameters)
 {
     unsigned char current_state = STARTING_STATE; // Default state
@@ -207,7 +208,7 @@ initial_state:
         }
     }
 }
-
+*/
 void vSwapBuffers(void *pvParameters)
 {
     TickType_t xLastWakeTime;
@@ -258,35 +259,28 @@ int main(int argc, char *argv[])
     StateQueue = xQueueCreate(STATE_QUEUE_LENGTH, sizeof(unsigned char));
     if (!StateQueue) {
         PRINT_ERROR("Could not open state queue");
-        goto err_state_queue;
     }
 
-    if (xTaskCreate(basicSequentialStateMachine, "StateMachine",
-                    mainGENERIC_STACK_SIZE * 2, NULL,
-                    configMAX_PRIORITIES - 1, StateMachine) != pdPASS) {
-        PRINT_TASK_ERROR("StateMachine");
-        goto err_statemachine;
-    }
     if (xTaskCreate(vSwapBuffers, "BufferSwapTask",
                     mainGENERIC_STACK_SIZE * 2, NULL, configMAX_PRIORITIES,
                     BufferSwap) != pdPASS) {
         PRINT_TASK_ERROR("BufferSwapTask");
-        goto err_bufferswap;
+        
     }
 
-    pongInit();
+    tetrisInit();
 
     vTaskStartScheduler();
 
     return EXIT_SUCCESS;
 
     vTaskDelete(BufferSwap);
-err_bufferswap:
+/*err_bufferswap:
     vTaskDelete(StateMachine);
 err_statemachine:
     vQueueDelete(StateQueue);
 err_state_queue:
-    tumSoundExit();
+    tumSoundExit();*/
 err_init_audio:
     tumEventExit();
 err_init_events:
