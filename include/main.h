@@ -18,5 +18,6 @@ extern SemaphoreHandle_t DrawSignal;
 extern QueueHandle_t StateQueue;
 
 void vDrawFPS(void);
+void checkDraw(unsigned char, const char*);
 
 #endif // __MAIN_H__
