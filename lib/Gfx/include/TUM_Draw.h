@@ -46,7 +46,7 @@
 /**
  * Sets the height (in pixels) of the screen
  */
-#define SCREEN_HEIGHT 700
+#define SCREEN_HEIGHT 690
 
 /**
  * @defgroup tum_draw TUM Drawing API

@@ -10,6 +10,6 @@
 
 extern TaskHandle_t testTetris;
 
-int tetrisInit(void);
+int tetrisMain(void);
 
 #endif
