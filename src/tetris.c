@@ -32,14 +32,21 @@ TaskHandle_t gameHandle = NULL;
 SemaphoreHandle_t ScreenLock = NULL;
 SemaphoreHandle_t DrawSignal = NULL;
 SemaphoreHandle_t LevelLock = NULL;
-
-
 SemaphoreHandle_t lockTetris = NULL; 
+SemaphoreHandle_t lockScore = NULL;
+SemaphoreHandle_t lockLines = NULL; 
+
 
 int field[fieldHeight][fieldWidth];
 
 unsigned int color[] = {Red, Blue, Green, Yellow, Aqua, Fuchsia, White, Gray};
 int level = 1;
+int score = 0;
+int lines = 0;
+char* scorestring[4];
+char* linesString[2];
+char* levelString[2];
+
 
 
 
@@ -339,20 +346,20 @@ void figureShape(tetromino* figure){
 }
 
 
-void makeFigure(tetromino* figure){
+tetromino* makeFigure(tetromino* figure){
     figure->center.x = 6*30;
     figure->center.y = 2*30;
-    //figure->type = rand() % 19;
-    figure->type = 7;
+    figure->type = rand() % 19;
     figureShape(figure);
-    figure->color = color[rand() %8];
+    figure->color = color[rand() % 8];
+    return figure;
 }
 
 void drawFigure(tetromino* figure){
-    tumDrawFilledBox(figure->coords[0].x, figure->coords[0].y, 30, 30, figure->color);
-    tumDrawFilledBox(figure->coords[1].x, figure->coords[1].y, 30, 30, figure->color);
-    tumDrawFilledBox(figure->coords[2].x, figure->coords[2].y, 30, 30, figure->color);
-    tumDrawFilledBox(figure->coords[3].x, figure->coords[3].y, 30, 30, figure->color);
+    checkDraw(tumDrawFilledBox(figure->coords[0].x, figure->coords[0].y, 30, 30, figure->color), __FUNCTION__);
+    checkDraw(tumDrawFilledBox(figure->coords[1].x, figure->coords[1].y, 30, 30, figure->color), __FUNCTION__);
+    checkDraw(tumDrawFilledBox(figure->coords[2].x, figure->coords[2].y, 30, 30, figure->color), __FUNCTION__);
+    checkDraw(tumDrawFilledBox(figure->coords[3].x, figure->coords[3].y, 30, 30, figure->color), __FUNCTION__);
 }
 
 int leftCoord(tetromino* figure){
@@ -422,14 +429,15 @@ void moveFigures(tetromino* figure, int map[fieldHeight][fieldWidth], direction 
 
 int getTopRow();
 
-void deleteFilledRows();
+void deleteRowsAndTrackScore();
 
+void clearTetrisCoordinates(){
 
-
+}
 
 void game(void* pvParameters){
 
-    bool pressed_down = false, slide = false, pressed_right = false, pressed_left = false, pressed_rotate = false;
+    bool pressed_down = false, slide = false, pressed_right = false, pressed_left = false, pressed_rotate = false, pressed_p = false, pressed_m = false;
     makeFigure(tetrisC);
     makeFigure(tetrisN);
     tetrisC->isMoving = true;
@@ -546,17 +554,33 @@ void game(void* pvParameters){
         }
         if(!tetrisC->isMoving) {
             tetrisC = tetrisN;
-            makeFigure(tetrisN);
             tetrisC->isMoving = true;
+            tetrisN = makeFigure(tetrisN);
             vTaskResume(moveTetris);
         }
+        if(xSemaphoreTake(buttons.lock, 0) == pdTRUE && xSemaphoreTake(LevelLock, 0) == pdTRUE) {
+            if(buttons.buttons[SDL_SCANCODE_P] && level < 10) {
+                if(!pressed_p){
+                    level++;
+                    pressed_p = true;
+                }
+            }else pressed_p = false;
+            if(buttons.buttons[SDL_SCANCODE_M] && level > 1) {
+                if(!pressed_m){
+                    level--;
+                    pressed_m = true;
+                }
+            } else pressed_m = false;
+            xSemaphoreGive(buttons.lock);
+            xSemaphoreGive(LevelLock);
+        }
         
-        deleteFilledRows();
-        vTaskDelay(pdMS_TO_TICKS(50));   
+        deleteRowsAndTrackScore();
+        vTaskDelay(pdMS_TO_TICKS(40));   
     }
 }
 
-void deleteFilledRows(){
+void deleteRowsAndTrackScore(){
     bool flag;
     int full = 0, first;
     for(int i = fieldHeight - 1; i >= 0; i--){
@@ -583,6 +607,17 @@ void deleteFilledRows(){
                 field[i + full][j] = field[i][j];
             }
         }
+        if(xSemaphoreTake(lockScore, 0) == pdTRUE && xSemaphoreTake(LevelLock, 0) == pdTRUE){
+            if(full == 1) score += level * 40;      
+            else if(full == 2) score += level * 100;
+            else if(full == 3) score += level * 300;
+            else if(full == 4) score += level * 1200;
+            lines += full;
+            xSemaphoreGive(lockScore);
+            xSemaphoreGive(LevelLock);
+        }
+        
+                          
     }
 
 
@@ -608,7 +643,7 @@ void moveTetrisTask(void *pvParameters){
             xSemaphoreGive(lockTetris);    
         } 
 
-        vTaskDelay(pdMS_TO_TICKS(400));
+        vTaskDelay(pdMS_TO_TICKS(1000)/level);
 
             
     }
@@ -631,6 +666,18 @@ void drawingTask(void * pvParameters){
                     }
                 }
                 drawFigure(tetrisC);
+                sprintf(scorestring, "Score: %d", score);
+                checkDraw(tumDrawText(scorestring, 530, 100, Red), __FUNCTION__);
+                sprintf(levelString,"Level: %d", level);
+                checkDraw(tumDrawText(levelString, 530, 170, White), __FUNCTION__);
+                sprintf(linesString, "Lines: %d", lines);
+                checkDraw(tumDrawText(linesString, 530, 250, White), __FUNCTION__);
+                
+                tumDrawFilledBox(tetrisN->coords[0].x + 520, tetrisN->coords[0].y + 300, 30, 30, tetrisN->color);
+                tumDrawFilledBox(tetrisN->coords[1].x + 520, tetrisN->coords[1].y + 300, 30, 30, tetrisN->color);
+                tumDrawFilledBox(tetrisN->coords[2].x + 520, tetrisN->coords[2].y + 300, 30, 30, tetrisN->color);
+                tumDrawFilledBox(tetrisN->coords[3].x + 520, tetrisN->coords[3].y + 300, 30, 30, tetrisN->color);
+                
                 xSemaphoreGive(ScreenLock);
             }
         }
@@ -662,12 +709,30 @@ int tetrisMain(void){
         PRINT_ERROR("Failed to create tetris lock");
     }
 
+    lockScore = xSemaphoreCreateMutex();
+
+    if(!lockScore){
+        PRINT_ERROR("Failed to create score lock");
+    }
+
+    LevelLock = xSemaphoreCreateMutex();
+
+    if(!LevelLock){
+        PRINT_ERROR("Failed to create level lock");
+    }
+
+    lockLines = xSemaphoreCreateMutex();
+
+    if(!lockLines){
+        PRINT_ERROR("Failed to create lines lock");
+    }
+
     buttons.lock = xSemaphoreCreateMutex();
     
     if(!buttons.lock){
         PRINT_ERROR("Failed to create buttons lock");
     }
-    xTaskCreate(drawingTask, "drawing", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawTask);
-    xTaskCreate(game, "game", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &gameHandle);
-    xTaskCreate(moveTetrisTask, "moveTetris", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &moveTetris);
+    xTaskCreate(drawingTask, "drawing", 2, NULL, mainGENERIC_PRIORITY, &drawTask);
+    xTaskCreate(game, "game", 3, NULL, mainGENERIC_PRIORITY, &gameHandle);
+    xTaskCreate(moveTetrisTask, "moveTetris", 2, NULL, mainGENERIC_PRIORITY, &moveTetris);
 }

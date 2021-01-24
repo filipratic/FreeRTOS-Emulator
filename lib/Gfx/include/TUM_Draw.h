@@ -42,7 +42,7 @@
 /**
  * Sets the width (in pixels) of the screen
  */
-#define SCREEN_WIDTH 750
+#define SCREEN_WIDTH 900
 /**
  * Sets the height (in pixels) of the screen
  */

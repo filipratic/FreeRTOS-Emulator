@@ -43,12 +43,12 @@
 /**
  * Defines the default font size used by the SDL TTF library
  */
-#define DEFAULT_FONT_SIZE 15
+#define DEFAULT_FONT_SIZE 50
 
 /**
  * Default font to be used by the SDL TTF library
  */
-#define DEFAULT_FONT "IBMPlexSans-Medium.ttf"
+#define DEFAULT_FONT "IBMPlexSans-Bold.ttf"
 
 /**
  * Location of font TTF files
