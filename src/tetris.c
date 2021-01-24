@@ -342,7 +342,8 @@ void figureShape(tetromino* figure){
 void makeFigure(tetromino* figure){
     figure->center.x = 6*30;
     figure->center.y = 2*30;
-    figure->type = rand() % 19;
+    //figure->type = rand() % 19;
+    figure->type = 7;
     figureShape(figure);
     figure->color = color[rand() %8];
 }
@@ -419,19 +420,56 @@ void moveFigures(tetromino* figure, int map[fieldHeight][fieldWidth], direction 
     figureShape(figure);
 }
 
+int getTopRow();
+
+void deleteFilledRows();
 
 
-void deleteFilledRow();
+
 
 void game(void* pvParameters){
 
-    bool pressed_down = false, pressed_right = false, pressed_left = false, pressed_rotate = false;
+    bool pressed_down = false, slide = false, pressed_right = false, pressed_left = false, pressed_rotate = false;
     makeFigure(tetrisC);
     makeFigure(tetrisN);
     tetrisC->isMoving = true;
 
     while(1){
         xGetButtonInput();
+        if(xSemaphoreTake(lockTetris, 0) == pdTRUE){
+            if((lowestCoord(tetrisC) == 630 || detectCollisionDown(tetrisC)) && rightCoord(tetrisC) < 420 && leftCoord(tetrisC) > 30){
+                if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
+                    if(buttons.buttons[SDL_SCANCODE_LEFT]){
+                        vTaskSuspend(moveTetris);
+                        if(!detectCollisionLeft(tetrisC)){
+                            if(!slide){
+                                slide = true;
+                                moveFigures(tetrisC, field[fieldHeight][fieldWidth], left);
+                            }
+                            
+                        } else {
+                            setIndexToOne(tetrisC);
+                            tetrisC->isMoving = false;                            
+                        }
+                    } else slide = false;
+                    if(buttons.buttons[SDL_SCANCODE_RIGHT]){
+                        vTaskSuspend(moveTetris);
+                        if(!detectCollisionRight(tetrisC)){
+                            if(!slide){
+                                moveFigures(tetrisC, field[fieldHeight][fieldWidth], right);
+                                slide = true;
+                            }
+                            
+                        } else {
+                            setIndexToOne(tetrisC);
+                            tetrisC->isMoving = false;
+                        }
+                    } else slide = false;
+                }
+                    xSemaphoreGive(buttons.lock);
+            }
+            xSemaphoreGive(lockTetris);
+        }
         if(xSemaphoreTake(buttons.lock, 0) == pdTRUE && xSemaphoreTake(lockTetris, 0) == pdTRUE){
             if(buttons.buttons[SDL_SCANCODE_DOWN]){
                 if(lowestCoord(tetrisC) < 630){
@@ -510,56 +548,43 @@ void game(void* pvParameters){
             tetrisC = tetrisN;
             makeFigure(tetrisN);
             tetrisC->isMoving = true;
+            vTaskResume(moveTetris);
         }
         
-        deleteFilledRow(getTopRow());
+        deleteFilledRows();
         vTaskDelay(pdMS_TO_TICKS(50));   
     }
 }
 
-int getTopRow(){
-    for(int i = 0; i < fieldHeight; i++){
+void deleteFilledRows(){
+    bool flag;
+    int full = 0, first;
+    for(int i = fieldHeight - 1; i >= 0; i--){
+        flag = true;
         for(int j = 0; j < fieldWidth; j++){
-            if(field[i][j] == 1) return i;
+            if(!field[i][j]) {
+                flag = false;
+                break;
+            }
+        }
+        if(flag) {
+            full++;
+            first = i;
         }
     }
-}
+    if(full > 0){
+        for(int i = first; i < first + full; i++){
+            for(int j = 0; j < fieldWidth; j++){
+                field[i][j] = 0;
+            }
+        }
+        for(int i = first - 1; i >= 0; i--){
+            for(int j = 0; j < fieldWidth; j++){
+                field[i + full][j] = field[i][j];
+            }
+        }
+    }
 
-void deleteFilledRow(int top){
-    int cnt = 0;
-    bool cleared = false;
-    for(int i = 0; i < fieldHeight; i++){
-        for(int j = 0; j < fieldWidth; j++){
-            if(field[i][j]) cnt++; 
-        }
-        if(cnt == 14) {
-            int k = 0;
-            while(k < 14) {
-                field[i][k] = 0;
-                k++;
-            }
-            cleared = true;
-            cnt = 0;
-        }
-        else {
-            cnt = 0;
-            cleared = false;
-        }
-        if(cleared){
-            for(int g = i; g >= 0; g--){
-                for(int j = fieldWidth - 1; j >= 0; j--){
-                    field[i][j] = field[i - 1][j];
-                }
-            }
-            int g = 0;
-            while(g < fieldWidth){
-                field[top][g] = 0;
-                g++;
-            }
-            
-        }
-    }
-    
 
 }
 
@@ -570,11 +595,9 @@ void drawWalls(){
 }
 
 void moveTetrisTask(void *pvParameters){
-    TickType_t LastTick;
-    LastTick = xTaskGetTickCount();
     while(1){
         if(xSemaphoreTake(lockTetris, 0) == pdTRUE){
-            if(lowestCoord(tetrisC) < 630 && !detectCollisionDown(tetrisC)){
+            if(lowestCoord(tetrisC) < 630 && !detectCollisionDown(tetrisC) && tetrisC->isMoving){
                 tetrisC->center.y += 30;
                 figureShape(tetrisC);
             }
@@ -585,7 +608,7 @@ void moveTetrisTask(void *pvParameters){
             xSemaphoreGive(lockTetris);    
         } 
 
-        vTaskDelayUntil(&LastTick, pdMS_TO_TICKS(400));
+        vTaskDelay(pdMS_TO_TICKS(400));
 
             
     }
@@ -644,8 +667,6 @@ int tetrisMain(void){
     if(!buttons.lock){
         PRINT_ERROR("Failed to create buttons lock");
     }
-
-
     xTaskCreate(drawingTask, "drawing", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &drawTask);
     xTaskCreate(game, "game", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &gameHandle);
     xTaskCreate(moveTetrisTask, "moveTetris", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &moveTetris);
