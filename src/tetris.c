@@ -28,6 +28,8 @@
 TaskHandle_t moveTetris = NULL;
 TaskHandle_t drawTask = NULL; 
 TaskHandle_t gameHandle = NULL;
+TaskHandle_t menuHandle = NULL;
+TaskHandle_t stateMachineHandle = NULL;
 
 SemaphoreHandle_t ScreenLock = NULL;
 SemaphoreHandle_t DrawSignal = NULL;
@@ -43,9 +45,9 @@ unsigned int color[] = {Red, Blue, Green, Yellow, Aqua, Fuchsia, White, Gray};
 int level = 1;
 int score = 0;
 int lines = 0;
-char* scorestring[4];
-char* linesString[2];
-char* levelString[2];
+char scorestring[7];
+char linesString[7];
+char levelString[7];
 
 
 
@@ -77,6 +79,12 @@ enum direction {
     left
 };
     
+enum currentState {
+    mainMenu,
+    single,
+    multi
+};
+
 
 typedef struct buttons_buffer {
     unsigned char buttons[SDL_NUM_SCANCODES];
@@ -98,11 +106,15 @@ struct tetromino {
 
 typedef struct tetromino tetromino;
 typedef enum direction direction;
+typedef enum currentState currentState;
 
 tetromino tetrisCurrent;
 tetromino tetrisNext;
 tetromino* tetrisC = &tetrisCurrent;
 tetromino* tetrisN = &tetrisNext;
+
+
+
 
 void xGetButtonInput(void)
 {
@@ -111,6 +123,41 @@ void xGetButtonInput(void)
         xSemaphoreGive(buttons.lock);
     }
 }
+
+void figureShape(tetromino*);
+
+int highestCoord(tetromino*);
+
+bool checkPosition(tetromino*);
+
+void makeFigure(tetromino*);
+
+void drawFigure(tetromino*);
+
+int leftCoord(tetromino*);
+
+int rightCoord(tetromino*);
+
+int lowestCoord(tetromino*);
+
+int highestCoord(tetromino*);
+
+bool detectCollisionDown(tetromino*);
+
+bool detectCollisionRight(tetromino*);
+
+bool detectCollisionLeft(tetromino*);
+
+void setIndexToOne(tetromino*);
+
+void moveFigures(tetromino*, direction);
+
+int getTopRow();
+
+void deleteRowsAndTrackScore();
+
+void copyFigure(tetromino*, tetromino*);
+
 
 void figureShape(tetromino* figure){
     switch(figure->type){
@@ -345,14 +392,19 @@ void figureShape(tetromino* figure){
     }
 }
 
+bool checkPosition(tetromino* figure){
+    for(int i = 0; i < 4; i++){
+        if(figure->coords[i].y == 30) return true;
+    }
+    return false;
+}
 
-tetromino* makeFigure(tetromino* figure){
+void makeFigure(tetromino* figure){
     figure->center.x = 6*30;
     figure->center.y = 2*30;
     figure->type = rand() % 19;
     figureShape(figure);
     figure->color = color[rand() % 8];
-    return figure;
 }
 
 void drawFigure(tetromino* figure){
@@ -386,6 +438,15 @@ int lowestCoord(tetromino* figure){
     return max;
 }
 
+int highestCoord(tetromino* figure){
+    int max = 1000;
+    for(int i = 0; i < 4; i++){
+        if(figure->coords[i].x < max) max = figure->coords[i].x;
+    }
+    return max;
+
+}
+
 bool detectCollisionDown(tetromino* figure){
     for(int i = 0; i < 4; i++){
         if(field[figure->coords[i].y / 30 + 1][figure->coords[i].x / 30 - 1]) return true;
@@ -411,7 +472,7 @@ void setIndexToOne(tetromino* figure){
     }
 }
 
-void moveFigures(tetromino* figure, int map[fieldHeight][fieldWidth], direction way){
+void moveFigures(tetromino* figure, direction way){
     
     switch(way){
         case down:
@@ -427,64 +488,31 @@ void moveFigures(tetromino* figure, int map[fieldHeight][fieldWidth], direction 
     figureShape(figure);
 }
 
-int getTopRow();
-
-void deleteRowsAndTrackScore();
-
-void clearTetrisCoordinates(){
-
+void copyFigure(tetromino* figureC, tetromino* figureN){
+    figureC->center.x = figureN->center.x;
+    figureC->center.y = figureN->center.y;
+    figureC->type = figureN->type;
+    figureC->next = figureN->next;
+    figureC->color = figureN->color;
+    figureShape(figureC);
 }
 
 void game(void* pvParameters){
-
-    bool pressed_down = false, slide = false, pressed_right = false, pressed_left = false, pressed_rotate = false, pressed_p = false, pressed_m = false;
+    bool pressed_down = false, pressed_right = false, pressed_left = false, pressed_rotate = false, pressed_p = false, pressed_m = false;
+    vTaskSuspend(NULL);
     makeFigure(tetrisC);
     makeFigure(tetrisN);
     tetrisC->isMoving = true;
 
     while(1){
         xGetButtonInput();
-        if(xSemaphoreTake(lockTetris, 0) == pdTRUE){
-            if((lowestCoord(tetrisC) == 630 || detectCollisionDown(tetrisC)) && rightCoord(tetrisC) < 420 && leftCoord(tetrisC) > 30){
-                if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
-                    if(buttons.buttons[SDL_SCANCODE_LEFT]){
-                        vTaskSuspend(moveTetris);
-                        if(!detectCollisionLeft(tetrisC)){
-                            if(!slide){
-                                slide = true;
-                                moveFigures(tetrisC, field[fieldHeight][fieldWidth], left);
-                            }
-                            
-                        } else {
-                            setIndexToOne(tetrisC);
-                            tetrisC->isMoving = false;                            
-                        }
-                    } else slide = false;
-                    if(buttons.buttons[SDL_SCANCODE_RIGHT]){
-                        vTaskSuspend(moveTetris);
-                        if(!detectCollisionRight(tetrisC)){
-                            if(!slide){
-                                moveFigures(tetrisC, field[fieldHeight][fieldWidth], right);
-                                slide = true;
-                            }
-                            
-                        } else {
-                            setIndexToOne(tetrisC);
-                            tetrisC->isMoving = false;
-                        }
-                    } else slide = false;
-                }
-                    xSemaphoreGive(buttons.lock);
-            }
-            xSemaphoreGive(lockTetris);
-        }
         if(xSemaphoreTake(buttons.lock, 0) == pdTRUE && xSemaphoreTake(lockTetris, 0) == pdTRUE){
             if(buttons.buttons[SDL_SCANCODE_DOWN]){
                 if(lowestCoord(tetrisC) < 630){
                     if(!detectCollisionDown(tetrisC)){
                         if(!pressed_down){
                             pressed_down = true;
-                            moveFigures(tetrisC, field[fieldHeight][fieldWidth], down);
+                            moveFigures(tetrisC, down);
                         }
                     } else {
                         setIndexToOne(tetrisC);
@@ -508,7 +536,7 @@ void game(void* pvParameters){
                     if(!detectCollisionRight(tetrisC)){
                         if(!pressed_right){
                         pressed_right = true;
-                        moveFigures(tetrisC, field[fieldHeight][fieldWidth], right);
+                        moveFigures(tetrisC, right);
                     }
                     }
                 }    
@@ -524,7 +552,7 @@ void game(void* pvParameters){
                         if(!detectCollisionLeft(tetrisC)){
                             if(!pressed_left){
                                 pressed_left = true;
-                                moveFigures(tetrisC, field[fieldHeight][fieldWidth], left);
+                                moveFigures(tetrisC, left);
                             }
                         }
                         } else {
@@ -553,10 +581,15 @@ void game(void* pvParameters){
             xSemaphoreGive(buttons.lock);
         }
         if(!tetrisC->isMoving) {
-            tetrisC = tetrisN;
-            tetrisC->isMoving = true;
-            tetrisN = makeFigure(tetrisN);
-            vTaskResume(moveTetris);
+            if(!checkPosition(tetrisC)){
+                copyFigure(tetrisC, tetrisN);
+                makeFigure(tetrisN);
+                tetrisC->isMoving = true;
+            }
+            else {
+                printf("Game Over\n");
+            }
+            
         }
         if(xSemaphoreTake(buttons.lock, 0) == pdTRUE && xSemaphoreTake(LevelLock, 0) == pdTRUE) {
             if(buttons.buttons[SDL_SCANCODE_P] && level < 10) {
@@ -576,7 +609,7 @@ void game(void* pvParameters){
         }
         
         deleteRowsAndTrackScore();
-        vTaskDelay(pdMS_TO_TICKS(40));   
+        vTaskDelay(pdMS_TO_TICKS(50));   
     }
 }
 
@@ -629,7 +662,106 @@ void drawWalls(){
     tumDrawFilledBox(450, 0, 30, 700, Gray);
 }
 
+void clearMap(){
+    for(int i = 0; i < fieldHeight; i++){
+        for(int j = 0; j < fieldWidth; j++){
+            field[i][j] = 0;
+        }
+    }
+}
+
+
+void drawGameMenuTask(void * pvParameters){
+    while(1){
+        if(DrawSignal){
+            if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
+                if(xSemaphoreTake(ScreenLock, portMAX_DELAY) == pdTRUE){
+                    checkDraw(tumDrawClear(Black), __FUNCTION__);
+                    checkDraw(tumDrawText("Welcome to Tetris!", 200, 200, Red), __FUNCTION__);
+                    checkDraw(tumDrawText("Pick a game mode:", 200, 250, White), __FUNCTION__);
+                    checkDraw(tumDrawText("S - Single player", 200, 300, White), __FUNCTION__);
+                    checkDraw(tumDrawText("D - Multiplayer", 200, 350, White), __FUNCTION__);
+                    checkDraw(tumDrawText("A - Main Menu", 200, 400, White), __FUNCTION__);
+
+                    xSemaphoreGive(ScreenLock);
+                }
+            }
+        }
+        
+    }
+}
+
+void stateMachineTask(void * pvParameters){
+    bool pressed_a = false, pressed_s = false, pressed_d = false;
+    currentState state;
+    
+    while(1){
+        xGetButtonInput();
+        if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
+            if(buttons.buttons[SDL_SCANCODE_A]){
+                if(!pressed_a){
+                    state = mainMenu;
+                    pressed_a = true;
+                }
+            } else pressed_a = false;
+            xSemaphoreGive(buttons.lock);
+        }
+        if(xSemaphoreTake(buttons.lock,0) == pdTRUE){
+            if(buttons.buttons[SDL_SCANCODE_S]){
+                if(!pressed_s){
+                    state = single;
+                    pressed_s = true;
+                    printf("Test\n");
+                }
+            } else pressed_s = false;
+            xSemaphoreGive(buttons.lock);
+        }
+        if(xSemaphoreTake(buttons.lock, 0) == pdTRUE){
+            if(buttons.buttons[SDL_SCANCODE_D]){
+                if(!pressed_d){
+                    state = multi;
+                    pressed_d = true;
+                }
+            } else pressed_d = false;
+            xSemaphoreGive(buttons.lock);
+        }       
+            
+        switch (state)
+        {
+        case mainMenu:{
+            vTaskSuspend(gameHandle);
+            vTaskSuspend(moveTetris);
+            vTaskSuspend(drawTask);
+            vTaskResume(menuHandle);
+            break;
+        }
+        
+        case single:{
+            vTaskSuspend(menuHandle);
+            vTaskResume(gameHandle);
+            vTaskResume(drawTask);
+            vTaskResume(moveTetris);
+            break;
+        }
+        case multi:{
+            vTaskSuspend(gameHandle);
+            vTaskSuspend(moveTetris);
+            vTaskSuspend(drawTask);
+            vTaskSuspend(menuHandle);
+            break;
+        }
+        default:
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+
+
+
 void moveTetrisTask(void *pvParameters){
+    vTaskSuspend(NULL);
     while(1){
         if(xSemaphoreTake(lockTetris, 0) == pdTRUE){
             if(lowestCoord(tetrisC) < 630 && !detectCollisionDown(tetrisC) && tetrisC->isMoving){
@@ -646,14 +778,13 @@ void moveTetrisTask(void *pvParameters){
         vTaskDelay(pdMS_TO_TICKS(1000)/level);
 
             
-    }
-
-        
+    }   
 }
 
 
 
 void drawingTask(void * pvParameters){
+    vTaskSuspend(NULL);
     while(1){
         if(DrawSignal){
             if(xSemaphoreTake(DrawSignal, portMAX_DELAY) == pdTRUE){
@@ -677,7 +808,7 @@ void drawingTask(void * pvParameters){
                 tumDrawFilledBox(tetrisN->coords[1].x + 520, tetrisN->coords[1].y + 300, 30, 30, tetrisN->color);
                 tumDrawFilledBox(tetrisN->coords[2].x + 520, tetrisN->coords[2].y + 300, 30, 30, tetrisN->color);
                 tumDrawFilledBox(tetrisN->coords[3].x + 520, tetrisN->coords[3].y + 300, 30, 30, tetrisN->color);
-                
+                vDrawFPS();
                 xSemaphoreGive(ScreenLock);
             }
         }
@@ -732,7 +863,12 @@ int tetrisMain(void){
     if(!buttons.lock){
         PRINT_ERROR("Failed to create buttons lock");
     }
-    xTaskCreate(drawingTask, "drawing", 2, NULL, mainGENERIC_PRIORITY, &drawTask);
-    xTaskCreate(game, "game", 3, NULL, mainGENERIC_PRIORITY, &gameHandle);
-    xTaskCreate(moveTetrisTask, "moveTetris", 2, NULL, mainGENERIC_PRIORITY, &moveTetris);
+    xTaskCreate(drawingTask, "drawing", mainGENERIC_STACK_SIZE, NULL, 1, &drawTask);
+    xTaskCreate(game, "game", mainGENERIC_STACK_SIZE, NULL, 2, &gameHandle);
+    xTaskCreate(moveTetrisTask, "moveTetris", mainGENERIC_STACK_SIZE, NULL, 1, &moveTetris);
+    xTaskCreate(drawGameMenuTask, "mainMenu", mainGENERIC_STACK_SIZE, NULL, 1, &menuHandle);
+    xTaskCreate(stateMachineTask, "StateMachine", mainGENERIC_STACK_SIZE, NULL, 3, &stateMachineHandle);
+
+    return 0;
+
 }
