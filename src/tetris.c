@@ -24,12 +24,20 @@
 #define fieldHeight 22
 #define fieldWidth 14
 
+#define UDP_RECEIVE_PORT 1234
+#define UDP_TRANSMIT_PORT 1235
+#define IPv4_addr "127.0.0.1"
+
+
+
 
 TaskHandle_t moveTetris = NULL;
 TaskHandle_t drawTask = NULL; 
 TaskHandle_t gameHandle = NULL;
 TaskHandle_t menuHandle = NULL;
 TaskHandle_t stateMachineHandle = NULL;
+TaskHandle_t demoTaskHandle = NULL;
+
 
 SemaphoreHandle_t ScreenLock = NULL;
 SemaphoreHandle_t DrawSignal = NULL;
@@ -38,6 +46,8 @@ SemaphoreHandle_t lockTetris = NULL;
 SemaphoreHandle_t lockScore = NULL;
 SemaphoreHandle_t lockLines = NULL; 
 
+aIO_handle_t receiveHandle = NULL;
+aIO_handle_t sendHandle = NULL; 
 
 int field[fieldHeight][fieldWidth];
 
@@ -123,6 +133,8 @@ void xGetButtonInput(void)
         xSemaphoreGive(buttons.lock);
     }
 }
+
+void EmulatorRecv(size_t, char*, void*);
 
 void figureShape(tetromino*);
 
@@ -758,6 +770,42 @@ void stateMachineTask(void * pvParameters){
 }
 
 
+void EmulatorSend(size_t recv_size, char* buffer, void* args){
+    char test[5];
+    strcpy(test, buffer);
+    printf("%s\n", test);
+}
+
+void EmulatorRecv(size_t recv_size, char* buffer, void* args){
+    char recv_val[10];
+    strcpy(recv_val, buffer);
+
+    printf("%s\n", recv_val);
+}
+
+
+void vDemoTask(void * pvParameters){
+    //receiveHandle = aIOOpenUDPSocket(IPv4_addr, UDP_RECEIVE_PORT, 5 * sizeof(char), EmulatorRecv, NULL);
+    //aIOSocketPut(UDP, IPv4_addr, MOSI_PORT, (char *)&random_value,
+				// sizeof(random_value))
+    sendHandle = aIOOpenUDPSocket(IPv4_addr, UDP_TRANSMIT_PORT, 6*sizeof(char), EmulatorSend, NULL);
+    receiveHandle = aIOOpenUDPSocket(IPv4_addr, UDP_RECEIVE_PORT, 6 * sizeof(char), EmulatorRecv, NULL);
+    if(sendHandle == NULL){
+        PRINT_ERROR("Failed to open send socket");
+        exit(EXIT_FAILURE);
+    }
+
+    if(receiveHandle == NULL){
+        PRINT_ERROR("Failed to open receive socket");
+        exit(EXIT_FAILURE);
+    }
+
+    while(1){
+        aIOSocketPut(UDP, IPv4_addr, UDP_TRANSMIT_PORT, "MODE", 6*sizeof(char));
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 
 
 void moveTetrisTask(void *pvParameters){
@@ -823,6 +871,8 @@ int tetrisMain(void){
     fillField(field);
     printField();
 
+
+    
     DrawSignal = xSemaphoreCreateBinary(); // Screen buffer locking
     if (!DrawSignal) {
         PRINT_ERROR("Failed to create draw signal");
@@ -863,11 +913,14 @@ int tetrisMain(void){
     if(!buttons.lock){
         PRINT_ERROR("Failed to create buttons lock");
     }
-    xTaskCreate(drawingTask, "drawing", mainGENERIC_STACK_SIZE, NULL, 1, &drawTask);
+    /*xTaskCreate(drawingTask, "drawing", mainGENERIC_STACK_SIZE, NULL, 1, &drawTask);
     xTaskCreate(game, "game", mainGENERIC_STACK_SIZE, NULL, 2, &gameHandle);
     xTaskCreate(moveTetrisTask, "moveTetris", mainGENERIC_STACK_SIZE, NULL, 1, &moveTetris);
     xTaskCreate(drawGameMenuTask, "mainMenu", mainGENERIC_STACK_SIZE, NULL, 1, &menuHandle);
     xTaskCreate(stateMachineTask, "StateMachine", mainGENERIC_STACK_SIZE, NULL, 3, &stateMachineHandle);
+*/
+    xTaskCreate(vDemoTask, "demo", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &demoTaskHandle);
+
 
     return 0;
 
