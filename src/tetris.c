@@ -27,6 +27,7 @@
 #define UDP_RECEIVE_PORT 1234
 #define UDP_TRANSMIT_PORT 1235
 #define IPv4_addr "127.0.0.1"
+#define UDP_BUFFER_SIZE 2000
 
 
 
@@ -770,41 +771,79 @@ void stateMachineTask(void * pvParameters){
 }
 
 
-void EmulatorSend(size_t recv_size, char* buffer, void* args){
-    char test[5];
-    strcpy(test, buffer);
-    printf("%s\n", test);
+
+
+SemaphoreHandle_t HandleUDP = NULL;
+
+enum modes {
+    FAIR,
+    RANDOM,
+    EASY,
+    HARD
+};
+
+typedef enum modes modes;
+static QueueHandle_t ModeQueue = NULL;
+
+
+void UDPHandler(size_t read_size, char *buffer, void *args)
+{
+    char mode[20];
+    BaseType_t xHigherPriorityTaskWoken1 = pdFALSE;
+    BaseType_t xHigherPriorityTaskWoken2 = pdFALSE;
+    BaseType_t xHigherPriorityTaskWoken3 = pdFALSE;
+
+    
+
+    if (xSemaphoreTakeFromISR(HandleUDP, &xHigherPriorityTaskWoken1) ==
+        pdTRUE) {
+
+        char send_command = 1;
+        strcpy(mode,buffer);
+        if (ModeQueue && send_command) {
+            xQueueSendFromISR(ModeQueue, buffer,
+                              &xHigherPriorityTaskWoken2);
+        }
+        xSemaphoreGiveFromISR(HandleUDP, &xHigherPriorityTaskWoken3);
+
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken1 |
+                           xHigherPriorityTaskWoken2 |
+                           xHigherPriorityTaskWoken3);
+    }
+    else {
+        fprintf(stderr, "[ERROR] Overlapping UDPHandler call\n");
+    }
 }
 
-void EmulatorRecv(size_t recv_size, char* buffer, void* args){
-    char recv_val[10];
-    strcpy(recv_val, buffer);
 
-    printf("%s\n", recv_val);
+void transmitUDP(size_t recv_size, char* buffer, void *args){
+    printf("Sent %s\n", buffer);
 }
 
+void vUDPControlTask(void *pvParameters)
+{
+    static char buf[] = "MODE";
+    char *addr = NULL; // Loopback
+    char test[20];
+    
+    
+    receiveHandle = aIOOpenUDPSocket(IPv4_addr, UDP_RECEIVE_PORT, UDP_BUFFER_SIZE, UDPHandler, NULL);
+    //sendHandle = aIOOpenUDPSocket(addr, UDP_TRANSMIT_PORT, UDP_BUFFER_SIZE, transmitUDP, NULL);
+    //printf("UDP socket opened on port %d\n", UDP_RECEIVE_PORT);
 
-void vDemoTask(void * pvParameters){
-    //receiveHandle = aIOOpenUDPSocket(IPv4_addr, UDP_RECEIVE_PORT, 5 * sizeof(char), EmulatorRecv, NULL);
-    //aIOSocketPut(UDP, IPv4_addr, MOSI_PORT, (char *)&random_value,
-				// sizeof(random_value))
-    sendHandle = aIOOpenUDPSocket(IPv4_addr, UDP_TRANSMIT_PORT, 6*sizeof(char), EmulatorSend, NULL);
-    receiveHandle = aIOOpenUDPSocket(IPv4_addr, UDP_RECEIVE_PORT, 6 * sizeof(char), EmulatorRecv, NULL);
-    if(sendHandle == NULL){
-        PRINT_ERROR("Failed to open send socket");
-        exit(EXIT_FAILURE);
-    }
+    while (1) {
 
-    if(receiveHandle == NULL){
-        PRINT_ERROR("Failed to open receive socket");
-        exit(EXIT_FAILURE);
-    }
+        vTaskDelay(pdMS_TO_TICKS(100));
 
-    while(1){
-        aIOSocketPut(UDP, IPv4_addr, UDP_TRANSMIT_PORT, "MODE", 6*sizeof(char));
-        vTaskDelay(pdMS_TO_TICKS(500));
+        
+        xQueueReceive(ModeQueue, test, 0);
+    
+        printf("%s\n", test);
+        aIOSocketPut(UDP, NULL, UDP_TRANSMIT_PORT, buf, strlen(buf));
     }
+    
 }
+
 
 
 
@@ -872,7 +911,9 @@ int tetrisMain(void){
     printField();
 
 
-    
+    ModeQueue = xQueueCreate(100, 11*sizeof(char));
+
+
     DrawSignal = xSemaphoreCreateBinary(); // Screen buffer locking
     if (!DrawSignal) {
         PRINT_ERROR("Failed to create draw signal");
@@ -918,8 +959,8 @@ int tetrisMain(void){
     xTaskCreate(moveTetrisTask, "moveTetris", mainGENERIC_STACK_SIZE, NULL, 1, &moveTetris);
     xTaskCreate(drawGameMenuTask, "mainMenu", mainGENERIC_STACK_SIZE, NULL, 1, &menuHandle);
     xTaskCreate(stateMachineTask, "StateMachine", mainGENERIC_STACK_SIZE, NULL, 3, &stateMachineHandle);
-*/
-    xTaskCreate(vDemoTask, "demo", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &demoTaskHandle);
+    */
+    xTaskCreate(vUDPControlTask, "demo", mainGENERIC_STACK_SIZE, NULL, mainGENERIC_PRIORITY, &demoTaskHandle);
 
 
     return 0;
