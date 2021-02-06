@@ -235,8 +235,6 @@ void vSwapBuffers(void *pvParameters)
 
 int main(int argc, char *argv[])
 {
-
-
     srand(time(NULL));
 
     char *bin_folder_path = tumUtilGetBinFolderPath(argv[0]);
