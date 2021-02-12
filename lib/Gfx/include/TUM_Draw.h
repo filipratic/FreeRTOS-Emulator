@@ -77,6 +77,9 @@
 #define Fuchsia (unsigned int) 0xFF00FF
 #define White (unsigned int) 0xFFFFFF
 #define Black (unsigned int) 0x000000
+#define Gray  (unsigned int) 0x808080
+#define TUMBlue (unsigned int)(0x0065bd)
+#define Silver   (unsigned int)(0xC0C0C0)
 /**@}*/
 
 /**
